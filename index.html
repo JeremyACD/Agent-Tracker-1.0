@@ -1,0 +1,1539 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Agent Performance Tracker Builder</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📊</text></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+<style>
+:root {
+  --navy: #1F4E78; --navy-ink: #163a5a; --ink: #1d2733; --muted: #5b6673; --line: #d5dbe2; --page: #ffffff; --panel: #f5f7f9;
+  --ok-bg: #C6EFCE; --ok-ink: #006100; --bad-bg: #FFC7CE; --bad-ink: #9C0006; --warn-bg: #FFF2CC; --warn-ink: #7a4f00;
+  --focus: #2f7bd8; color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --navy: #7fb0dc; --navy-ink: #a9cbea; --ink: #e6ebf0; --muted: #9aa6b2; --line: #33404d; --page: #151b22; --panel: #1c242d;
+    --ok-bg: #173d22; --ok-ink: #8fdc9f; --bad-bg: #4a1d22; --bad-ink: #ffb3bd; --warn-bg: #43361a; --warn-ink: #f1d08a; --focus: #78b2f5; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --navy: #7fb0dc; --navy-ink: #a9cbea; --ink: #e6ebf0; --muted: #9aa6b2; --line: #33404d; --page: #151b22; --panel: #1c242d;
+  --ok-bg: #173d22; --ok-ink: #8fdc9f; --bad-bg: #4a1d22; --bad-ink: #ffb3bd; --warn-bg: #43361a; --warn-ink: #f1d08a; --focus: #78b2f5; color-scheme: dark;
+}
+:root { box-sizing: border-box; padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px); }
+*, *::before, *::after { box-sizing: inherit; }
+html { scroll-padding-top: env(safe-area-inset-top, 0px); }
+body { margin: 0; background: var(--page); color: var(--ink); font: 400 16px/1.55 "Public Sans", system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif; font-variant-numeric: tabular-nums; }
+main { max-width: 760px; margin: 0 auto; padding: 40px 20px 72px; }
+header { border-top: 6px solid var(--navy); padding-top: 22px; margin-bottom: 28px; }
+h1 { font-size: 30px; line-height: 1.15; font-weight: 700; letter-spacing: -0.01em; margin: 0 0 8px; color: var(--navy-ink); }
+.lede { margin: 0; color: var(--muted); max-width: 62ch; }
+.private { display: inline-block; margin-top: 12px; font-size: 14px; color: var(--ok-ink); background: var(--ok-bg); padding: 3px 10px; border-radius: 4px; }
+section { border-top: 1px solid var(--line); padding: 26px 0 8px; }
+h2 { display: flex; gap: 12px; align-items: baseline; font-size: 20px; font-weight: 600; margin: 0 0 12px; }
+h2 .n { flex: none; width: 28px; height: 28px; border-radius: 50%; background: var(--navy); color: var(--page); font-size: 15px; display: inline-grid; place-items: center; transform: translateY(3px); }
+p { margin: 0 0 12px; max-width: 70ch; }
+.drop { border: 2px dashed var(--line); border-radius: 8px; padding: 26px 20px; text-align: center; background: var(--panel); transition: border-color .15s, background .15s; }
+.drop.over { border-color: var(--navy); background: color-mix(in srgb, var(--navy) 8%, var(--panel)); }
+.drop strong { display: block; font-size: 17px; margin-bottom: 4px; }
+.drop .hint { color: var(--muted); font-size: 14px; }
+button, .btn { font: inherit; font-weight: 600; border-radius: 6px; padding: 10px 18px; border: 1px solid var(--navy); background: var(--navy); color: var(--page); cursor: pointer; text-decoration: none; display: inline-block; }
+button.secondary, .btn.secondary { background: transparent; color: var(--navy-ink); }
+button.link { background: none; border: none; padding: 0; color: var(--navy-ink); font-weight: 500; text-decoration: underline; }
+button:disabled { opacity: .45; cursor: not-allowed; }
+:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
+.manifest { list-style: none; padding: 0; margin: 18px 0 6px; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+.manifest li { display: grid; grid-template-columns: 26px 1fr; gap: 10px; padding: 11px 14px; border-top: 1px solid var(--line); }
+.manifest li:first-child { border-top: none; }
+.manifest .mark { width: 22px; height: 22px; border-radius: 4px; display: grid; place-items: center; font-size: 13px; font-weight: 700; margin-top: 2px; }
+.manifest li.ok { background: color-mix(in srgb, var(--ok-bg) 45%, transparent); }
+.manifest li.ok .mark { background: var(--ok-bg); color: var(--ok-ink); }
+.manifest li.missing .mark { background: var(--bad-bg); color: var(--bad-ink); }
+.manifest li.missing { background: color-mix(in srgb, var(--bad-bg) 30%, transparent); }
+.manifest li.optional .mark { background: var(--panel); color: var(--muted); border: 1px solid var(--line); }
+.manifest .what { font-weight: 600; }
+.manifest .detail { color: var(--muted); font-size: 14px; overflow-wrap: anywhere; }
+.monthline { margin: 14px 0 0; padding: 12px 14px; border-left: 4px solid var(--navy); background: var(--panel); border-radius: 0 6px 6px 0; }
+.monthline .row { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin-top: 8px; }
+details { border: 1px solid var(--line); border-radius: 8px; margin: 6px 0 14px; }
+summary { cursor: pointer; padding: 12px 14px; font-weight: 600; }
+summary .sub { font-weight: 400; color: var(--muted); }
+.roster-body { padding: 0 14px 14px; }
+.tablewrap { overflow-x: auto; max-height: 420px; overflow-y: auto; border: 1px solid var(--line); border-radius: 6px; }
+table { border-collapse: collapse; width: 100%; font-size: 14px; }
+th, td { text-align: left; padding: 7px 10px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+th { position: sticky; top: 0; background: var(--panel); font-weight: 600; }
+td select, input[type=text] { font: inherit; padding: 5px 8px; border: 1px solid var(--line); border-radius: 5px; background: var(--page); color: var(--ink); }
+.addrow { display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap; }
+.addrow input { flex: 1 1 220px; }
+.unmatched { margin-top: 16px; padding: 12px 14px; background: var(--warn-bg); color: var(--warn-ink); border-radius: 6px; }
+.unmatched h3 { margin: 0 0 6px; font-size: 16px; }
+.unmatched .item { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; padding: 6px 0; border-top: 1px solid color-mix(in srgb, var(--warn-ink) 25%, transparent); }
+.unmatched .item:first-of-type { border-top: none; }
+.unmatched .nm { font-weight: 600; min-width: 190px; }
+.status { margin: 14px 0; font-weight: 500; }
+.log { list-style: none; padding: 0; margin: 14px 0; }
+.log li { padding: 8px 12px; border-radius: 6px; margin-bottom: 6px; font-size: 15px; }
+.log li.warn { background: var(--warn-bg); color: var(--warn-ink); }
+.log li.error { background: var(--bad-bg); color: var(--bad-ink); }
+.log li.note, .log li.info { background: var(--panel); }
+.result { padding: 16px; border: 1px solid var(--ok-ink); border-radius: 8px; background: color-mix(in srgb, var(--ok-bg) 45%, transparent); margin-top: 8px; }
+.result h3 { margin: 0 0 6px; font-size: 18px; }
+.result .actions { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 12px; }
+footer { margin-top: 36px; padding-top: 16px; border-top: 1px solid var(--line); color: var(--muted); font-size: 14px; display: flex; gap: 18px; flex-wrap: wrap; }
+.hidden { display: none !important; }
+@media (max-width: 560px) { h1 { font-size: 25px; } main { padding-top: 24px; } }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>Agent Performance Tracker</h1>
+    <p class="lede">Builds the updated tracker for Team Leads from the latest phone, schedule, payroll, and QA reports.</p>
+    <span class="private">Files are processed on this computer. Nothing is uploaded.</span>
+  </header>
+
+  <section aria-labelledby="s1">
+    <h2 id="s1"><span class="n">1</span>Add the files</h2>
+    <p>Include the current tracker from Teams every time. It carries the tool's saved data and the Team Leads' attendance codes. File names don't matter; each file is recognized by what's inside it.</p>
+    <div class="drop" id="drop">
+      <strong>Drop files here</strong>
+      <span class="hint">Use the reports exactly as they download. Overlapping date ranges are fine.</span>
+      <div style="margin-top:12px"><button type="button" class="secondary" id="choose">Choose files</button></div>
+    </div>
+    <input type="file" id="files" multiple accept=".csv,.xlsx,.json" class="hidden">
+    <ul class="manifest" id="manifest"></ul>
+    <button class="link" id="clear" type="button">Clear files</button>
+    <div class="monthline hidden" id="monthline"></div>
+  </section>
+
+  <section aria-labelledby="s2">
+    <h2 id="s2"><span class="n">2</span>Check the roster</h2>
+    <p>Only needed when someone joins, leaves, changes name, moves to Tier 2, or goes on extended PTO.</p>
+    <details id="roster"><summary>Roster <span class="sub" id="rosterSummary">(add the current tracker first)</span></summary>
+      <div class="roster-body" id="rosterBody"></div>
+    </details>
+    <div id="unmatched"></div>
+  </section>
+
+  <section aria-labelledby="s3">
+    <h2 id="s3"><span class="n">3</span>Build</h2>
+    <button id="build" type="button" disabled>Build tracker</button>
+    <div class="status" id="status" role="status" aria-live="polite"></div>
+    <div id="results"></div>
+  </section>
+
+  <footer>
+    <button class="link" id="backup" type="button" disabled>Download a backup of the saved data</button>
+    <span>A backup (.json) can be dropped in above to restore the saved data if a tracker file is ever lost.</span>
+  </footer>
+</main>
+<script>/* util.js */
+(function () {
+// ---------- Utilities shared by the tracker engine (browser + Node) ----------
+// Dates are handled as "naive" timestamps: Date objects whose UTC fields hold the local clock reading.
+
+const DAY = 86400000;
+const WEEKDAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+const MON3 = MONTHS.map(m => m.slice(0, 3).toLowerCase());
+
+function nowNaive() { const n = new Date(); return new Date(Date.UTC(n.getFullYear(), n.getMonth(), n.getDate(), n.getHours(), n.getMinutes(), n.getSeconds())); }
+function ymd(d) { return d.toISOString().slice(0, 10); }                    // Date -> 'YYYY-MM-DD'
+function dayOf(d) { return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate())); }
+function fromYmd(s) { const [y, m, d] = s.split('-').map(Number); return new Date(Date.UTC(y, m - 1, d)); }
+function addDays(d, n) { return new Date(d.getTime() + n * DAY); }
+function pyWeekday(d) { return (d.getUTCDay() + 6) % 7; }                   // Mon=0 .. Sun=6
+function weekKey(d) { const s = addDays(dayOf(d), -((pyWeekday(d) + 1) % 7)); return Number(ymd(s).replace(/-/g, '')); }
+function sundayOnOrBefore(d) { return addDays(d, -((pyWeekday(d) + 1) % 7)); }
+function lastOfMonth(y, m) { return new Date(Date.UTC(y, m, 0)); }          // m is 1-based
+function fmtClock(d) {                                                       // '%I:%M %p'
+  let h = d.getUTCHours(); const ap = h < 12 ? 'AM' : 'PM'; h = h % 12 || 12;
+  return `${String(h).padStart(2, '0')}:${String(d.getUTCMinutes()).padStart(2, '0')} ${ap}`;
+}
+function mdyy(d) { return `${d.getUTCMonth() + 1}/${d.getUTCDate()}/${String(d.getUTCFullYear()).slice(2)}`; }
+function md(d) { return `${d.getUTCMonth() + 1}/${d.getUTCDate()}`; }
+
+// '%m/%d/%Y %I:%M:%S %p'
+function parseDt(s) {
+  const m = /^\s*(\d{1,2})\/(\d{1,2})\/(\d{4})\s+(\d{1,2}):(\d{1,2}):(\d{1,2})\s+([AaPp][Mm])\s*$/.exec(s || '');
+  if (!m) return null;
+  let h = +m[4]; if (h < 1 || h > 12) return null;
+  const pm = m[7].toUpperCase() === 'PM'; h = (h % 12) + (pm ? 12 : 0);
+  return new Date(Date.UTC(+m[3], +m[1] - 1, +m[2], h, +m[5], +m[6]));
+}
+// '%I:%M %p' or '%I:%M%p' -> time on 1900-01-01
+function parseClock(s) {
+  const m = /^\s*(\d{1,2}):(\d{1,2})\s*([AaPp][Mm])\s*$/.exec(String(s == null ? '' : s));
+  if (!m) return null;
+  let h = +m[1]; if (h > 12 || +m[2] > 59) return null;      // '00:30 AM' (seen in schedule exports) reads as 12:30 AM
+  h = (h % 12) + (m[3].toUpperCase() === 'PM' ? 12 : 0);
+  return new Date(Date.UTC(1900, 0, 1, h, +m[2]));
+}
+function hms(s) {
+  if (!s) return 0;
+  const p = String(s).split(':');
+  if (p.length === 3 && p.every(x => /^\s*-?\d+\s*$/.test(x))) return +p[0] * 3600 + +p[1] * 60 + +p[2];
+  const f = parseFloat(s); return isFinite(f) && /^\s*-?[\d.]+(e-?\d+)?\s*$/i.test(String(s)) ? Math.trunc(f) : 0;
+}
+function norm(name) {
+  let n = String(name == null ? '' : name).replace(/\s+/g, ' ').trim();
+  if (n.includes(',')) { const i = n.indexOf(','); n = `${n.slice(i + 1).trim()} ${n.slice(0, i).trim()}`; }
+  return n.replace(/\s+/g, ' ').trim().toLowerCase();
+}
+// Python's built-in sum() for floats (Neumaier compensated summation, CPython 3.12+).
+function pySum(a) {
+  let s = 0, c = 0;
+  for (const x of a) { const t = s + x; if (Math.abs(s) >= Math.abs(x)) c += (s - t) + x; else c += (x - t) + s; s = t; }
+  return c && isFinite(c) ? s + c : s;
+}
+// math.fsum (exact, Shewchuk) then one division: matches statistics.mean to the last bit in practice.
+function fsum(a) {
+  const partials = [];
+  for (let x of a) { let i = 0; for (let y of partials) { if (Math.abs(x) < Math.abs(y)) [x, y] = [y, x]; const hi = x + y, lo = y - (hi - x); if (lo) partials[i++] = lo; x = hi; } partials.length = i; partials.push(x); }
+  let n = partials.length, hi = 0, lo = 0;
+  if (n) { hi = partials[--n]; while (n > 0) { const x = hi, y = partials[--n]; hi = x + y; const yr = hi - x; lo = y - yr; if (lo) break; }
+    if (n > 0 && ((lo < 0 && partials[n - 1] < 0) || (lo > 0 && partials[n - 1] > 0))) { const y = lo * 2, x = hi + y, yr = x - hi; if (y === yr) hi = x; } }
+  return hi;
+}
+function median(a) { const s = [...a].sort((x, y) => x - y); const k = s.length >> 1; return s.length % 2 ? s[k] : (s[k - 1] + s[k]) / 2; }
+// statistics.mean: exact rational average of the doubles, rounded once to the nearest double.
+function _toFrac(x) {                       // double -> [BigInt numerator, power-of-two exponent]
+  if (x === 0) return [0n, 0];
+  const dv = new DataView(new ArrayBuffer(8)); dv.setFloat64(0, x);
+  const hi = dv.getUint32(0), lo = dv.getUint32(4), sign = hi >>> 31, ex = (hi >>> 20) & 0x7ff;
+  let mant = (BigInt(hi & 0xfffff) << 32n) | BigInt(lo), e;
+  if (ex === 0) e = -1074; else { mant |= 1n << 52n; e = ex - 1075; }
+  return [sign ? -mant : mant, e];
+}
+const _blen = n => n.toString(2).length;
+function _ratToDouble(p, q) {               // nearest double to p/q (q > 0), ties to even
+  if (p === 0n) return 0;
+  const neg = p < 0n; if (neg) p = -p;
+  let e = _blen(p) - _blen(q) - 53, m, r, qq;
+  for (;;) {
+    let pp = p; qq = q; if (e > 0) qq = q << BigInt(e); else pp = p << BigInt(-e);
+    m = pp / qq; r = pp % qq;
+    if (m >= (1n << 53n)) e++; else if (m < (1n << 52n)) e--; else break;
+  }
+  if (2n * r > qq || (2n * r === qq && (m & 1n))) { m++; if (m === (1n << 53n)) { m = 1n << 52n; e++; } }
+  const v = Number(m) * Math.pow(2, e); return neg ? -v : v;
+}
+function mean(a) {
+  const fr = a.map(_toFrac), emin = Math.min(...fr.map(f => f[1]));
+  let num = 0n; for (const [m, e] of fr) num += m << BigInt(e - emin);
+  let den = BigInt(a.length);
+  if (emin >= 0) num <<= BigInt(emin); else den <<= BigInt(-emin);
+  return _ratToDouble(num, den);
+}
+
+// Python round(x, nd): correctly rounded on the exact binary value, ties to even.
+function _roundDecStr(x, nd, mode) {
+  const neg = x < 0; const s = Math.abs(x).toFixed(100);
+  let [ip, fp] = s.split('.'); const keep = fp.slice(0, nd), rest = fp.slice(nd);
+  let digits = (ip + keep).split('').map(Number);
+  const first = +rest[0], tail = /[1-9]/.test(rest.slice(1));
+  let up;
+  if (first > 5 || (first === 5 && tail)) up = true;
+  else if (first === 5 && !tail) up = mode === 'even' ? digits[digits.length - 1] % 2 === 1 : true;
+  else up = false;
+  if (up) { let i = digits.length - 1; while (i >= 0) { if (digits[i] === 9) { digits[i] = 0; i--; } else { digits[i]++; break; } } if (i < 0) digits.unshift(1); }
+  const str = digits.join(''), il = str.length - nd;
+  const out = nd ? `${str.slice(0, il)}.${str.slice(il)}` : str;
+  return (neg && /[1-9]/.test(out) ? '-' : '') + out;
+}
+function pyRound(x, nd = 0) { return x == null || !isFinite(x) ? x : Number(_roundDecStr(x, nd, 'even')); }
+function pyFixed(x, nd) { return _roundDecStr(x, nd, 'even'); }               // f'{x:.{nd}f}'
+// Excel ROUND(): take the value to 12 decimals (as Python's Decimal(f'{x:.12f}')), then round half away from zero on that decimal.
+function excelRound(x, nd) {
+  const s = pyFixed(x, 12), neg = s.startsWith('-'); const [ip, fp] = s.replace('-', '').split('.');
+  let digits = (ip + fp.slice(0, nd)).split('').map(Number); const rest = fp.slice(nd);
+  if (+rest[0] >= 5) { let i = digits.length - 1; while (i >= 0) { if (digits[i] === 9) { digits[i] = 0; i--; } else { digits[i]++; break; } } if (i < 0) digits.unshift(1); }
+  const str = digits.join(''), il = str.length - nd; const v = Number(nd ? `${str.slice(0, il)}.${str.slice(il)}` : str);
+  return neg ? -v : v;
+}
+
+function colLetter(n) { let s = ''; while (n > 0) { const m = (n - 1) % 26; s = String.fromCharCode(65 + m) + s; n = Math.floor((n - 1) / 26); } return s; }
+
+// Normalize an ExcelJS cell value to what openpyxl (data_only) would return.
+function cellVal(v) {
+  if (v == null) return null;
+  if (v instanceof Date) return v;
+  if (typeof v === 'object') {
+    if ('result' in v) return cellVal(v.result);
+    if ('formula' in v || 'sharedFormula' in v) return null;
+    if (v.richText) return v.richText.map(t => t.text).join('');
+    if ('text' in v) return typeof v.text === 'object' ? cellVal(v.text) : v.text;
+    if (v.error) return null;
+  }
+  return v;
+}
+function sheetRows(ws) {          // [{header: value}] like dict(zip(header_row, row)); later duplicate headers win
+  const n = ws.columnCount, hdr = [];
+  for (let c = 1; c <= n; c++) hdr.push(cellVal(ws.getRow(1).getCell(c).value));
+  const out = [];
+  for (let r = 2; r <= ws.rowCount; r++) {
+    const row = ws.getRow(r), o = {};
+    for (let c = 1; c <= n; c++) o[hdr[c - 1] == null ? '__none__' : String(hdr[c - 1])] = cellVal(row.getCell(c).value);
+    out.push(o);
+  }
+  return { hdr, rows: out };
+}
+
+const U = { pySum, fsum, DAY, WEEKDAYS, MONTHS, MON3, nowNaive, ymd, dayOf, fromYmd, addDays, pyWeekday, weekKey, sundayOnOrBefore, lastOfMonth,
+  fmtClock, mdyy, md, parseDt, parseClock, hms, norm, median, mean, pyRound, pyFixed, excelRound, colLetter, cellVal, sheetRows };
+if (typeof module !== 'undefined') module.exports = U; else window.TrackerUtil = U;
+
+})();
+</script>
+<script>/* parse.js */
+(function () {
+// ---------- Report parsing (port of parse_data.py) ----------
+// inputs: { csv: [{name, rows:[{...}]}], xlsx: [{name, wb}] }  (rows already parsed, header -> value)
+const _U = (typeof module !== 'undefined') ? require('./util.js') : window.TrackerUtil;
+
+function parseReports(inputs, cfg, log) {
+  const { norm, parseDt, parseClock, hms, weekKey, ymd, dayOf, addDays, fromYmd, fmtClock, pyWeekday, median, WEEKDAYS, pyRound, MON3 } = _U;
+  const team = cfg.team;
+  const EXCLUDE = new Set(team.exclude.map(norm));
+  const DATE_START = cfg.dateStart, MONTH_CAP = cfg.monthCap;
+  const now = cfg.now;
+  let DATE_END = MONTH_CAP;
+  const inRange = d => d >= DATE_START && d <= DATE_END;     // d: 'YYYY-MM-DD'
+
+  // ---- roster & name matching ----
+  const roster = {};
+  for (const n of team.roster) if (!EXCLUDE.has(norm(n))) roster[norm(n)] = n;
+  const AGENTS = Object.keys(roster).sort((a, b) => roster[a] < roster[b] ? -1 : roster[a] > roster[b] ? 1 : 0);
+  const byLast = {};
+  for (const rk of Object.keys(roster)) { const l = rk.split(' ').pop(); (byLast[l] = byLast[l] || []).push(rk); }
+  const NO_AUTO = {}; for (const [k, v] of Object.entries(team.never_match || {})) NO_AUTO[norm(k)] = new Set(v.map(norm));
+  const ALIASES = {}; for (const [k, v] of Object.entries(team.aliases || {})) ALIASES[norm(k)] = norm(v);
+  const rosterKeys = Object.keys(roster);
+  function resolve(raw) {
+    const n = norm(raw);
+    if (!n || EXCLUDE.has(n)) return null;
+    if (roster[n]) return n;
+    if (ALIASES[n]) return roster[ALIASES[n]] ? ALIASES[n] : null;
+    const w = n.split(' ');
+    const c = byLast[w[w.length - 1]] || [];
+    if (c.length === 1 && !(NO_AUTO[n] && NO_AUTO[n].has(c[0])) && !EXCLUDE.has(c[0])) return c[0];
+    const sub = rosterKeys.filter(rk => rk.split(' ')[0] === w[0] && w.every(x => rk.split(' ').includes(x)));
+    if (sub.length === 1) return sub[0];
+    const st = rosterKeys.filter(rk => rk.replace(/ /g, '') === n.replace(/ /g, ''));
+    if (st.length === 1) return st[0];
+    return null;
+  }
+
+  // Files are identified by their contents (kind), and ordered by the dates they contain, so names don't matter.
+  const DATE_FIELD = { dh: 'Start Date', us: 'Start Time', cdr: 'Date / Time' };
+  const fileEnd = f => {
+    if (f._end === undefined) { let hi = '0000-00-00'; const fld = DATE_FIELD[f.kind]; if (fld) for (const r of f.rows) { const dt = parseDt(r[fld]); if (dt) { const d = ymd(dt); if (d > hi) hi = d; } } f._end = hi; }
+    return f._end;
+  };
+  const exportStamp = name => { const m = /(\d{4}-\d{2}-\d{2})T(\d{2})[:_.-]?(\d{2})[:_.-]?(\d{2})/.exec(name); return m ? m.slice(1).join('') : ''; };
+  const byKind = (list, kind) => list.filter(f => f.kind === kind);
+  const sortByEnd = files => [...files].sort((a, b) => fileEnd(a) < fileEnd(b) ? -1 : fileEnd(a) > fileEnd(b) ? 1 : (a.name < b.name ? -1 : a.name > b.name ? 1 : 0));
+  function ownerAll(files, field, onlyRange) {
+    const o = {};
+    for (const f of sortByEnd(files)) for (const row of f.rows) {
+      const dt = parseDt(row[field]); if (!dt) continue; const d = ymd(dt);
+      if (!onlyRange || inRange(d)) o[d] = f.name;
+    }
+    return o;
+  }
+
+  const dhFiles = byKind(inputs.csv, 'dh'), usFiles = byKind(inputs.csv, 'us'), cdrFiles = byKind(inputs.csv, 'cdr');
+  // Schedule exports: older exports first, so a newer export of the same week wins.
+  const schedFiles = byKind(inputs.csv, 'sched').sort((a, b) => (exportStamp(a.name) + a.name) < (exportStamp(b.name) + b.name) ? -1 : 1);
+
+  // ---- last complete day ----
+  const dhOwnerAll = ownerAll(dhFiles, 'Start Date', false);
+  let volumeOut = cfg.volumeHistory || {};
+  if (cfg.dateEnd === 'auto') {
+    const c = {}, cur = {};
+    for (const f of dhFiles) for (const row of f.rows) { const dt = parseDt(row['Start Date']); if (dt && dhOwnerAll[ymd(dt)] === f.name) cur[ymd(dt)] = (cur[ymd(dt)] || 0) + 1; }
+    // Daily volume remembered from earlier runs fills in history the current reports don't cover,
+    // so a partial day can be spotted even when only this month's reports are provided.
+    Object.assign(c, cfg.volumeHistory || {}, cur);
+    volumeOut = { ...(cfg.volumeHistory || {}), ...cur };
+    const days = Object.keys(cur).filter(d => d >= DATE_START).sort();
+    if (!days.length) throw new Error(`No DetailedHistory rows found on or after ${DATE_START}. Add the latest DetailedHistory report.`);
+    let last = days[days.length - 1] < MONTH_CAP ? days[days.length - 1] : MONTH_CAP;
+    const wd = pyWeekday(fromYmd(last));
+    let same = Object.keys(c).filter(d => pyWeekday(fromYmd(d)) === wd && d < last).map(d => c[d]);
+    // No same-weekday history yet (first build from a tracker without saved data): compare with other weekdays, or other weekend days.
+    if (!same.length) same = Object.keys(c).filter(d => d < last && (pyWeekday(fromYmd(d)) < 5) === (wd < 5)).map(d => c[d]);
+    if (same.length && last === days[days.length - 1] && c[last] < 0.6 * median(same)) {
+      log.note(`${last} looks partial (${c[last]} records vs typical ${Math.trunc(median(same))}); ending at the day before. It will be included next time.`);
+      last = ymd(addDays(fromYmd(last), -1));
+    }
+    DATE_END = last;
+  } else DATE_END = cfg.dateEnd;
+  // Never remember a still-in-progress day as "typical" volume.
+  volumeOut = Object.fromEntries(Object.entries(volumeOut).filter(([d]) => d <= DATE_END));
+
+  const unmatched = { schedule: new Set(), calls: new Set() };
+
+  // ---- schedule ----
+  const schedule = {};
+  for (const f of schedFiles) for (const row of f.rows) {
+    const raw = row['Agent Name']; const n = resolve(raw);
+    if (n == null) { if (String(raw || '').trim() && !EXCLUDE.has(norm(raw))) unmatched.schedule.add(String(raw).trim()); continue; }
+    for (const col of Object.keys(row)) {
+      if (col === 'Agent Name') continue;
+      const m = /^\S+\s+(\d{1,2})\s+([A-Za-z]{3})\s+(\d{4})$/.exec(col.trim()); if (!m) continue;
+      const mi = MON3.indexOf(m[2].toLowerCase()); if (mi < 0) continue;
+      const d = `${m[3]}-${String(mi + 1).padStart(2, '0')}-${String(+m[1]).padStart(2, '0')}`;
+      const v = String(row[col] == null ? '' : row[col]).trim(); if (v) schedule[`${n}|${d}`] = v;
+    }
+  }
+
+  // ---- calls ----
+  const calls = {};
+  function addCall(n, dt, dir, comp, handle, wrap, hold, denied) {
+    const k = `${n}|${ymd(dt)}`;
+    const r = calls[k] || (calls[k] = { inbound: 0, outbound: 0, handle: 0, wrap: 0, hold: 0, denied: 0, first: null, last: null });
+    if (dir === 'inbound' && comp === 'Delivered') { r.inbound++; r.handle += handle; r.wrap += wrap; r.hold += hold; r.denied += denied; }
+    else if (dir === 'outbound') { r.outbound++; r.wrap += wrap; r.hold += hold; }
+    if (!r.first || dt < r.first) r.first = dt;
+    if (!r.last || dt > r.last) r.last = dt;
+  }
+  const dhOwner = ownerAll(dhFiles, 'Start Date', true);
+  for (const f of dhFiles) {
+    if (!Object.values(dhOwner).includes(f.name)) continue;
+    for (const row of f.rows) {
+      const dt = parseDt(row['Start Date']) || parseDt(row['Answered Date']) || parseDt(row['Completed Date']);
+      if (!dt || dhOwner[ymd(dt)] !== f.name) continue;
+      const u = String(row['User Name'] || '').trim(); if (!u) continue;
+      const n = resolve(u);
+      if (n == null) { if (!EXCLUDE.has(norm(u))) unmatched.calls.add(u); continue; }
+      const ds = String(row['Denied'] || '0').trim(); const den = /^[+-]?\d+$/.test(ds) ? parseInt(ds, 10) : 0;
+      addCall(n, dt, String(row['Direction'] || '').trim().toLowerCase(), row['Completion Code'], hms(row['Handle Time']), hms(row['Wrap Time']), hms(row['Hold Time']), den);
+    }
+  }
+  const cdrOwnerAll = ownerAll(cdrFiles, 'Date / Time', true), cdrOwner = {};
+  for (const [d, fn] of Object.entries(cdrOwnerAll)) if (!dhOwner[d]) cdrOwner[d] = fn;
+  for (const f of cdrFiles) {
+    if (!Object.values(cdrOwner).includes(f.name)) continue;
+    for (const row of f.rows) {
+      const dt = parseDt(row['Date / Time']); if (!dt || cdrOwner[ymd(dt)] !== f.name) continue;
+      const u = String(row['User'] || '').trim(); const n = u ? resolve(u) : null; if (n == null) continue;
+      addCall(n, dt, String(row['Direction'] || '').trim().toLowerCase(), row['Completion Code'], hms(row['Handle Time']), hms(row['Wrap Time']), 0, 0);
+    }
+  }
+  const cdrDays = Object.keys(cdrOwner).sort();
+  if (cdrDays.length) log.note(`CDR report used for days missing from DetailedHistory (Hold/Denied = 0 on those days): ${cdrDays.join(', ')}`);
+
+  // ---- agent states ----
+  const LOGIN = new Set(['system setup', 'not ready - please go available']);
+  const DUR = { 'not ready - please go available': 'nr', 'system setup': 'setup', 'lunch': 'lunch', 'outbound callback': 'obc' };
+  const states = {};
+  const usOwner = ownerAll(usFiles, 'Start Time', true);
+  for (const f of usFiles) {
+    if (!Object.values(usOwner).includes(f.name)) continue;
+    for (const row of f.rows) {
+      const st = parseDt(row['Start Time']); if (!st || usOwner[ymd(st)] !== f.name) continue;
+      const n = resolve(row['User Name']); if (n == null) continue;
+      const en = parseDt(row['End Time']); const d = ymd(st); const k = `${n}|${d}`;
+      const r = states[k] || (states[k] = { login: null, logout: null, nr: 0, setup: 0, lunch: 0, obc: 0, brk: 0, brk_max: 0 });
+      const s = String(row['State Name'] || '').trim().toLowerCase();
+      if (LOGIN.has(s) && (!r.login || st < r.login)) r.login = st;
+      if (DUR[s]) r[DUR[s]] += hms(row['State Duration']);
+      if (s === 'break - 10 minute max') { const dur = hms(row['State Duration']); r.brk += dur; r.brk_max = Math.max(r.brk_max, dur); }
+      if (en && ymd(en) === d && (!r.logout || en > r.logout)) r.logout = en;
+    }
+  }
+
+  // ---- timesheet ----
+  const tsFiles = byKind(inputs.xlsx, 'ts').sort((a, b) => (exportStamp(a.name) + a.name) < (exportStamp(b.name) + b.name) ? -1 : 1);
+  const segments = {};
+  for (const f of tsFiles) {
+    const ws = f.wb.getWorksheet('Timesheet Entries'); if (!ws) { log.warn(`${f.name} has no "Timesheet Entries" sheet; skipped.`); continue; }
+    const { rows } = _U.sheetRows(ws); const thisF = {};
+    for (const rd of rows) {
+      let d = rd['Date']; if (!(rd['Employee Name'] && d)) continue;
+      if (typeof d === 'string') { if (!/^\d{4}-\d{2}-\d{2}$/.test(d)) continue; } else if (d instanceof Date) d = ymd(d); else continue;
+      if (!inRange(d)) continue;
+      const n = resolve(rd['Employee Name']); if (n == null) continue;
+      (thisF[`${n}|${d}`] = thisF[`${n}|${d}`] || []).push([rd['Clock In'], rd['Clock Out']]);
+    }
+    Object.assign(segments, thisF);
+  }
+  const timesheet = {};
+  for (const [key, segs] of Object.entries(segments)) {
+    const p = segs.filter(([a]) => parseClock(a)).map(([a, b]) => [parseClock(a), parseClock(b), String(a).trim(), String(b == null ? 'None' : b).trim()])
+      .sort((x, y) => x[0] - y[0]);
+    if (!p.length) { timesheet[key] = { cin: '', cout: '', brk: null, log: '' }; continue; }
+    let gap = 0; const lg = [];
+    for (let i = 0; i < p.length - 1; i++) {
+      if (p[i][1] && p[i + 1][0] > p[i][1]) { const g = (p[i + 1][0] - p[i][1]) / 60000; gap += g; lg.push(`${p[i][3]}\u2013${p[i + 1][2]} (${pyRound(g)} min)`); }
+    }
+    let cout = ''; for (let i = p.length - 1; i >= 0; i--) if (p[i][1]) { cout = p[i][3]; break; }
+    timesheet[key] = { cin: p[0][2], cout, brk: pyRound(gap, 2), log: lg.join('; ') };
+  }
+
+  // ---- tiers ----
+  const t2 = new Set((team.tier2 || []).map(resolve));
+  const tiers = {}; for (const n of AGENTS) tiers[roster[n]] = t2.has(n) ? 'T2' : 'T1';
+
+  // ---- time zones ----
+  const tzd = {};
+  for (const [key, t] of Object.entries(timesheet)) {
+    const s = states[key]; const c = parseClock(t.cin);
+    if (c && s && s.login) {
+      const l = new Date(Date.UTC(1900, 0, 1, s.login.getUTCHours(), s.login.getUTCMinutes(), s.login.getUTCSeconds()));
+      const n = key.split('|')[0]; (tzd[n] = tzd[n] || []).push(Math.abs((c - l) / 60000));
+    }
+  }
+  const classify = v => {
+    if (!v || v.length < 2) return null;
+    let best = null;
+    for (const z of [0, 1, 2]) { const cnt = v.filter(x => Math.abs(x - 60 * z) <= 20).length; if (!best || cnt > best[0] || (cnt === best[0] && z > best[1])) best = [cnt, z]; }
+    return best[0] >= 0.6 * v.length ? best[1] : null;
+  };
+  const prevTz = {}; for (const [k, v] of Object.entries(cfg.timezonesLast || {})) if (v != null) prevTz[k] = v;
+  const timezones = {};
+  for (const n of AGENTS) { const z = classify(tzd[n]); timezones[roster[n]] = z != null ? z : (prevTz[roster[n]] != null ? prevTz[roster[n]] : null); }
+
+  // ---- QA ----
+  const qaCands = byKind(inputs.xlsx, 'qa').sort((a, b) => a.name < b.name ? -1 : 1);
+  if (!qaCands.length) throw new Error('Missing the Call Review Team Checklist (.xlsx).');
+  const qaLatest = f => {
+    let best = null;
+    for (const sh of cfg.qaSheets) {
+      const ws = f.wb.getWorksheet(sh); if (!ws) continue; const { rows } = _U.sheetRows(ws);
+      for (const r of rows) { const v = r['Date']; if (v instanceof Date && v <= now && (!best || v > best)) best = v; }
+    }
+    return best || new Date(-8.64e15);
+  };
+  let qaFile = qaCands[0], qaBest = qaLatest(qaCands[0]);
+  for (const f of qaCands.slice(1)) { const b = qaLatest(f); if (b > qaBest) { qaBest = b; qaFile = f; } }
+  if (qaCands.length > 1) log.note(`${qaCands.length} QA checklists provided; using the most current one (${qaFile.name}, reviews through ${ymd(qaBest)}).`);
+  const qaWeek = {}, qaNotes = {}, qaFixes = [];
+  for (const sh of cfg.qaSheets) {
+    const ws = qaFile.wb.getWorksheet(sh); if (!ws) continue;
+    const { rows } = _U.sheetRows(ws);
+    for (const rd of rows) {
+      const n = resolve(rd['Agent'] || rd['Name'] || '');
+      let cd = rd['Call Date']; let sc = rd['Primerica Scorecard'];
+      if (!(n && cd && sc != null) || !(cd instanceof Date)) continue;
+      sc = typeof sc === 'number' ? sc : parseFloat(sc); if (!isFinite(sc)) continue;
+      const rv = rd['Date'];
+      if (cd > now && rv instanceof Date && rv <= now && rv.getUTCFullYear() === cd.getUTCFullYear()) {
+        qaFixes.push(`${roster[n]}: call date ${ymd(cd)} is in the future; used the review date ${ymd(rv)} instead.`); cd = rv;
+      }
+      const cdd = ymd(cd);
+      if (cdd > DATE_END) continue;
+      if (inRange(cdd)) { const k = `${n}|${weekKey(cd)}`; (qaWeek[k] = qaWeek[k] || []).push(sc); }
+      else if (cdd < ymd(addDays(fromYmd(DATE_START), -45))) continue;
+      let note = rd['Notes'];
+      if (!note) { note = ''; for (const [k, v] of Object.entries(rd)) if (k !== '__none__' && String(k).trim() === '' && v) { note = v; break; } }
+      if (note) (qaNotes[n] = qaNotes[n] || []).push({ score: sc, ticket: String(rd['Ticket Number'] == null ? '' : rd['Ticket Number']).trim(), notes: String(note).trim(), call_date: cd.toISOString().slice(0, 19) });
+    }
+  }
+  const qaAvg = {}; for (const [k, v] of Object.entries(qaWeek)) qaAvg[k] = _U.pySum(v) / v.length;
+  for (const v of Object.values(qaNotes)) v.sort((a, b) => a.call_date < b.call_date ? 1 : a.call_date > b.call_date ? -1 : 0);
+
+  // ---- output rows ----
+  const dates = []; for (let d = fromYmd(DATE_START); ymd(d) <= DATE_END; d = addDays(d, 1)) dates.push(d);
+  const data = {};
+  for (const n of AGENTS) {
+    data[roster[n]] = dates.map(dd => {
+      const d = ymd(dd), k = `${n}|${d}`, c = calls[k], s = states[k], t = timesheet[k];
+      return {
+        date: d, weekday: WEEKDAYS[dd.getUTCDay()], iso_week: weekKey(dd), scheduled_shift: schedule[k] || '',
+        first_activity: c && c.first ? fmtClock(c.first) : '', last_activity: c && c.last ? fmtClock(c.last) : '',
+        login_time: s && s.login ? fmtClock(s.login) : '', logout_time: s && s.logout ? fmtClock(s.logout) : '',
+        inbound_delivered: c ? c.inbound : 0, outbound: c ? c.outbound : 0, handle_secs: c ? c.handle : 0, wrap_secs: c ? c.wrap : 0,
+        hold_secs: c ? c.hold : 0, prior_denials_on_calls_taken: c ? c.denied : 0, reg_hours_approved: null,
+        qa_weekly_avg: qaAvg[`${n}|${weekKey(dd)}`] != null ? qaAvg[`${n}|${weekKey(dd)}`] : null,
+        not_ready_secs: s ? s.nr : 0, system_setup_secs: s ? s.setup : 0, lunch_secs: s ? s.lunch : 0,
+        break_total_secs: s ? s.brk : 0, break_max_secs: s ? s.brk_max : 0, outbound_callback_secs: s ? s.obc : 0,
+        timesheet_clock_in: t ? t.cin : '', timesheet_clock_out: t ? t.cout : '', timesheet_break_min: t ? t.brk : null, timesheet_break_log: t ? t.log : ''
+      };
+    });
+  }
+  const notesOut = {}; for (const n of AGENTS) notesOut[roster[n]] = qaNotes[n] || [];
+  const tzLast = { ...prevTz }; for (const [k, v] of Object.entries(timezones)) if (v != null) tzLast[k] = v;
+  for (const x of qaFixes) log.note(`QA checklist: ${x}`);
+  return { data, qaNotes: notesOut, tiers, timezones, tzLast, volume: volumeOut, dateStart: DATE_START, dateEnd: DATE_END,
+    unmatched: { schedule: [...unmatched.schedule].sort(), calls: [...unmatched.calls].sort() }, qaFile: qaFile.name };
+}
+if (typeof module !== 'undefined') module.exports = { parseReports }; else window.TrackerParse = { parseReports };
+
+})();
+</script>
+<script>/* recap.js */
+(function () {
+// ---------- Recaps, PTO, carry-forward ----------
+const _UR = (typeof module !== 'undefined') ? require('./util.js') : window.TrackerUtil;
+
+function pyFloatStr(v) { return Number.isInteger(v) ? `${v}.0` : String(v); }      // Python str(float)
+function fmtHms(sec) {
+  if (sec == null) return '0:00';
+  const t = _UR.pyRound(sec); const h = Math.floor(t / 3600), rem = t - h * 3600, m = Math.floor(rem / 60), s = rem - m * 60;
+  return h ? `${h}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}` : `${m}:${String(s).padStart(2, '0')}`;
+}
+function fmtMmss(min) { return min == null ? '0:00' : fmtHms(min * 60); }
+const WK = { acw_min: 60, hold_min: 60, outbound_callback_min: 60, not_ready_min: 20, aht_min: 10, denied_max: 4 };
+
+function buildAgentRecap(agent, m, qa, qtd) {
+  const fn = agent.split(' ')[0], out = {};
+  const calls = m.total_calls, denied = m.denied, aht = m.aht_min, days = m.days_worked || 0;
+  const ahtOk = aht != null && aht <= WK.aht_min, denOk = denied <= WK.denied_max;
+  let cv;
+  if (calls === 0) cv = `${fn} did not have any calls logged this week — please verify schedule/attendance before using this recap.`;
+  else {
+    cv = `${ahtOk && denOk ? 'Excellent work here.' : 'Solid effort this week, with a couple of areas to tighten up.'} You handled ${calls} calls in ${days} working day${days !== 1 ? 's' : ''} while maintaining a ${aht != null ? fmtMmss(aht) : 'n/a'} AHT and having ${denied} denied call${denied !== 1 ? 's' : ''}.`;
+    if (qtd && qtd.total_calls) cv += ` Your quarter-to-date performance is ${ahtOk && denOk ? 'equally impressive' : 'worth a look too'}: ${qtd.total_calls} calls with ${qtd.denied} denied call${qtd.denied !== 1 ? 's' : ''}.`;
+  }
+  out.call_volume = cv;
+  if (qa) {
+    const pct = qa.score <= 1 ? qa.score * 100 : qa.score;
+    const tk = qa.ticket ? qa.ticket.replace(/\/+$/, '').split('/').pop() : '';
+    out.qa_summary = `${tk} – ${_UR.pyFixed(pct, 0)}%\n\n${qa.notes}`; out.qa_score_display = `${_UR.pyFixed(pct, 0)}%`;
+  } else {
+    out.qa_summary = 'No QA evaluation on file for this agent yet this period. Once a call is reviewed in the Call Review Team Checklist, the most recent evaluation will appear here automatically.';
+    out.qa_score_display = 'n/a';
+  }
+  const mark = (v, lim) => v == null ? '➖' : (v <= lim ? '✅' : '⚠️');
+  const acw = m.acw_min, hold = m.hold_min, nr = m.not_ready_min, obc = m.outbound_callback_min;
+  out.user_state_lines = [`ACW: ${fmtMmss(acw)} ${mark(acw, WK.acw_min)}`, `Hold Time: ${fmtMmss(hold)} ${mark(hold, WK.hold_min)}`,
+    `Outbound Callback: ${fmtMmss(obc)} ${mark(obc, WK.outbound_callback_min)}`, `Not Ready: ${fmtMmss(nr)} ${mark(nr, WK.not_ready_min)}`,
+    `Break (longest): ${fmtMmss(m.break_longest_min)}`, `Lunch: ${fmtMmss(m.lunch_min)}`].join('\n');
+  const vals = { 'ACW': acw, 'Hold Time': hold, 'Outbound Callback': obc, 'Not Ready': nr };
+  const lims = { 'ACW': WK.acw_min, 'Hold Time': WK.hold_min, 'Outbound Callback': WK.outbound_callback_min, 'Not Ready': WK.not_ready_min };
+  const over = Object.keys(vals).filter(k => vals[k] != null && vals[k] > lims[k]);
+  out.user_state_narrative = !over.length ? 'All user-state metrics were within goal this week. Great job staying available and efficient.'
+    : 'Most metrics were on track this week. The metric(s) outside of goal: ' + over.map(k => `${k} at ${fmtMmss(vals[k])}`).join('; ') + '. Please keep an eye on this going into next week.';
+  const tardy = m.tardy_days || 0;
+  const focus = [(aht != null && !ahtOk) ? `Work on bringing AHT down to ${fmtMmss(WK.aht_min)} or below.` : `Continue keeping AHT at or below ${fmtMmss(WK.aht_min)}.`,
+    !denOk ? 'Focus on reducing denied calls.' : 'Maintain zero or minimal denied calls.',
+    over.length ? `Bring ${over.join(', ')} back within the weekly goal.` : 'Keep ACW, Hold, Not Ready, and Outbound Callback within goal.',
+    (qa && qa.score < 0.85) ? "Review this week's QA feedback closely and apply the coaching notes on the next call." : 'Continue maintaining strong QA performance.'];
+  if (tardy) focus.push('Focus on consistent, on-time login for every scheduled shift.');
+  out.coaching_focus = focus;
+  let ov;
+  if (calls === 0) ov = `${fn}, there's no call activity on file for this period yet — nothing to recap until data comes in.`;
+  else {
+    const good = [], watch = [];
+    if (ahtOk) good.push(`a ${fmtMmss(aht)} AHT`);
+    if (denOk) good.push(`${denied} denied call${denied !== 1 ? 's' : ''}`);
+    if (!over.length) good.push('all user-state metrics within goal');
+    if (!good.length) good.push(`${calls} calls handled`);
+    if (over.length) watch.push(over.join(', '));
+    if (!ahtOk) watch.push('AHT');
+    if (!denOk) watch.push('denied calls');
+    ov = `${fn}, ${!watch.length ? 'this was a strong week' : 'this was a solid week with a few things to tighten up'}. You handled ${calls} calls with ${good.join(', ')}.`;
+    if (qa) ov += ` Your most recent QA evaluation came in at ${out.qa_score_display}.`;
+    if (qtd && qtd.qa_avg != null) ov += ` Your quarter-to-date QA average sits at ${pyFloatStr(_UR.pyRound(qtd.qa_avg * 100, 1))}%.`;
+    if (watch.length) ov += ` The area(s) to watch going forward: ${watch.join(', ')}.`;
+    ov += ` Keep up the good work, ${fn}!`;
+  }
+  out.overall_performance = ov;
+  return out;
+}
+
+// Combine saved period summaries (state.carry[key]) into one carry-forward per agent.
+function loadCarry(state, keys) {
+  const parts = [], labels = [];
+  for (const k of keys) {
+    const d = state.carry[k]; if (!d) throw new Error(`Saved totals for ${k} are missing from the tracker's data.`);
+    parts.push(d.agents); labels.push(d.label);
+  }
+  const out = {}, all = new Set(); parts.forEach(p => Object.keys(p).forEach(a => all.add(a)));
+  for (const a of all) {
+    const ps = parts.filter(p => p[a] && Object.keys(p[a]).length).map(p => p[a]); if (!ps.length) continue;
+    const o = {}; for (const k of ['days', 'calls', 'outbound', 'denied']) o[k] = _UR.pySum(ps.map(x => x[k] || 0));
+    const w = (k, wk) => { const q = ps.filter(x => typeof x[k] === 'number'); const d = _UR.pySum(q.map(x => x[wk])); return d ? _UR.pySum(q.map(x => x[k] * x[wk])) / d : null; };
+    o.aht = w('aht', 'calls'); for (const k of ['acw', 'hold', 'nr', 'qa']) o[k] = w(k, 'days');
+    out[a] = o;
+  }
+  for (const [old, nw] of Object.entries(state.team.renamed || {})) if (out[old] && !out[nw]) out[nw] = out[old];
+  return { carry: out, label: labels.length ? labels.join(' + ') : 'none' };
+}
+
+function ptoStatus(data, onPto) {
+  const out = {};
+  for (const a of onPto) {
+    const rows = data[a]; if (!rows) continue;
+    const act = rows.filter(r => r.inbound_delivered || r.outbound || r.login_time).map(r => r.date);
+    const last = act.length ? act[act.length - 1] : '';
+    out[a] = rows.filter(r => r.date > last && r.scheduled_shift && !(r.inbound_delivered || r.outbound || r.login_time)).map(r => r.date);
+  }
+  return out;
+}
+
+function computeRecaps(data, qaNotes, qtdCarry, pto) {
+  const { pyRound, fromYmd, pyWeekday, parseClock } = _UR;
+  const out = {};
+  for (const [agent, rows] of Object.entries(data)) {
+    const weeks = [...new Set(rows.map(r => r.iso_week))].sort((a, b) => a - b);
+    const full = weeks.filter(w => rows.some(r => r.iso_week === w && pyWeekday(fromYmd(r.date)) !== 6));
+    const lw = (full.length ? full : weeks)[(full.length ? full : weeks).length - 1];
+    const wr = rows.filter(r => r.iso_week === lw);
+    const sum = (L, f) => L.reduce((s, r) => s + f(r), 0);
+    const tc = sum(wr, r => r.inbound_delivered);
+    let tardy = 0;
+    for (const r of wr) {
+      const m = [...(r.scheduled_shift || '').matchAll(/(\d{1,2}:\d{2}\s*[AP]M)-/g)].map(x => x[1]);
+      const li = parseClock(r.login_time || r.first_activity);
+      const mt = m.map(x => parseClock(x.replace(/ /g, ''))).filter(Boolean);
+      if (mt.length && li) { const ss = Math.min(...mt.map(x => x.getTime())); if ((li - ss) / 1000 > 300) tardy++; }
+    }
+    const metrics = { total_calls: tc, denied: sum(wr, r => r.prior_denials_on_calls_taken),
+      aht_min: tc ? pyRound(sum(wr, r => r.handle_secs) / 60 / tc, 2) : null,
+      acw_min: pyRound(sum(wr, r => r.wrap_secs) / 60, 2), hold_min: pyRound(sum(wr, r => r.hold_secs) / 60, 2),
+      not_ready_min: pyRound(sum(wr, r => r.not_ready_secs) / 60, 2), outbound_callback_min: pyRound(sum(wr, r => r.outbound_callback_secs) / 60, 2),
+      break_longest_min: pyRound(Math.max(0, ...wr.map(r => r.break_max_secs)) / 60, 2), lunch_min: pyRound(sum(wr, r => r.lunch_secs) / 60, 2),
+      days_scheduled: wr.filter(r => r.scheduled_shift).length,
+      days_worked: wr.filter(r => r.inbound_delivered || r.outbound || r.login_time).length, tardy_days: tardy };
+    const qc = sum(rows, r => r.inbound_delivered);
+    const act = rows.filter(r => r.inbound_delivered || r.outbound), lg = rows.filter(r => r.login_time);
+    const qv = rows.filter(r => r.qa_weekly_avg != null).map(r => r.qa_weekly_avg);
+    let qtd = { total_calls: qc, denied: sum(rows, r => r.prior_denials_on_calls_taken), outbound_calls: sum(rows, r => r.outbound),
+      aht_min: qc ? pyRound(sum(rows, r => r.handle_secs) / 60 / qc, 2) : null,
+      acw_min: act.length ? pyRound(sum(act, r => r.wrap_secs) / 60 / act.length, 2) : null,
+      hold_min: act.length ? pyRound(sum(act, r => r.hold_secs) / 60 / act.length, 2) : null,
+      not_ready_min: lg.length ? pyRound(sum(lg, r => r.not_ready_secs) / 60 / lg.length, 2) : null,
+      qa_avg: qv.length ? _UR.pySum(qv) / qv.length : null };
+    const cf = qtdCarry[agent];
+    if (cf && Object.keys(cf).length) {
+      const bl = (own, key, wcf, wown, toMin = true) => {
+        let c = cf[key]; if (c == null) return own;
+        c = toMin ? c * 1440 : c;
+        if (own == null || !wown) return toMin ? pyRound(c, 2) : c;
+        return (c * wcf + own * wown) / (wcf + wown);
+      };
+      const nd = act.length;
+      qtd = { total_calls: qc + cf.calls, denied: qtd.denied + cf.denied, outbound_calls: qtd.outbound_calls + cf.outbound,
+        aht_min: bl(qtd.aht_min, 'aht', cf.calls, qc), acw_min: bl(qtd.acw_min, 'acw', cf.days, nd), hold_min: bl(qtd.hold_min, 'hold', cf.days, nd),
+        not_ready_min: bl(qtd.not_ready_min, 'nr', cf.days, lg.length), qa_avg: bl(qtd.qa_avg, 'qa', cf.days, nd, false) };
+    }
+    const notes = qaNotes[agent] || [];
+    out[agent] = { metrics, qtd, recap: buildAgentRecap(agent, metrics, notes[0] || null, qtd), last_week: lw };
+  }
+  for (const a of Object.keys(pto)) {
+    if (out[a] && out[a].metrics.total_calls === 0) {
+      const fn = a.split(' ')[0];
+      out[a].recap.call_volume = `${fn} was on PTO this week, so there is no call activity to recap.`;
+      out[a].recap.overall_performance = `${fn} was on PTO this week. Recap metrics will resume once ${fn} is back on the phones.`;
+      out[a].recap.coaching_focus = ['No coaching items this week (on PTO).'];
+    }
+  }
+  return out;
+}
+if (typeof module !== 'undefined') module.exports = { computeRecaps, loadCarry, ptoStatus, fmtMmss, pyFloatStr }; else window.TrackerRecap = { computeRecaps, loadCarry, ptoStatus, fmtMmss, pyFloatStr };
+
+})();
+</script>
+<script>/* build.js */
+(function () {
+// ---------- Workbook builder (port of build_tracker.py) ----------
+const _UB = (typeof module !== 'undefined') ? require('./util.js') : window.TrackerUtil;
+const _RB = (typeof module !== 'undefined') ? require('./recap.js') : window.TrackerRecap;
+const _ExcelJS = (typeof module !== 'undefined') ? require('exceljs') : window.ExcelJS;
+
+const README_TEMPLATE = [
+  [2, true, 16, 'FF1F4E78', 'Agent Performance Tracker — {MONTH}'],
+  [3, false, 11, 'FF666666', 'Primerica Program — ACD Direct'],
+  [5, false, 10, 'FF9C0006', '{START_NOTE}'],
+  [7, true, 12, 'FF1F4E78', 'HOW THIS WORKBOOK WORKS'],
+  [8, false, 10, 'FF000000', "Each agent has their own tab. This file is rebuilt from the daily reports with the Agent Tracker web tool: drop the reports and the current copy of this file into the tool, click Build, and upload the new file here (replacing this one). Team Leads' attendance codes are carried into every new version."],
+  [10, true, 12, 'FF1F4E78', 'RECAP METRICS BOX'],
+  [11, false, 10, 'FF000000', "Top of every agent tab, rows 2-9: a Weekly / Monthly / Quarterly / Yearly box for copy-pasting into a Team Lead's 1:1 recap — Total Calls Taken (Inbound), Outbound Calls, Total Calls, Total Denied Calls, AHT, ACW, Hold Time, Not Ready Time, and QA Score."],
+  [13, true, 12, 'FF1F4E78', 'TIME ZONE ADJUSTMENT (Clock-In Diff)'],
+  [14, false, 10, 'FF000000', 'The phone system always records login time in EST. The payroll timesheet reflects each agent\'s own local time zone (EST, CST, or MST). "Clock-In Diff" automatically adjusts for this — a CST agent\'s timesheet reading has 1 hour added, MST has 2 hours added, before comparing to the EST phone login.'],
+  [15, false, 10, 'FF000000', 'Each agent\'s time zone is inferred automatically from their own data. A couple of agents\' patterns may not fit any single zone confidently and show as "Unconfirmed" — no adjustment is applied for those until confirmed.'],
+  [17, true, 12, 'FF1F4E78', 'ATTENDANCE CODES (manual, live-updating)'],
+  [18, false, 10, 'FF000000', 'The "Attendance Code" column defaults to OK / NO ACTIVITY - VERIFY, with a dropdown for Team Leads to override: PTO, Excused Absence, Unexcused Absence, Excused Tardy, Unexcused Tardy, Excused Early Leave, Unexcused Early Leave. The Attendance Summary block in the Weekly Recap updates live from these — no rebuild needed.'],
+  [20, true, 12, 'FF1F4E78', 'WEEKLY RECAP SECTION'],
+  [21, false, 10, 'FF000000', 'Below the daily log on every agent tab: Call Volume & Handle Time, QA Summary, User State Summary, Attendance Summary, Coaching Focus, Overall Performance Notes, and a Quarter-to-Date Metrics card — built to be selected and pasted directly into an email or Teams message for the agent. Regenerated fresh each time this workbook is rebuilt.'],
+  [23, true, 12, 'FF1F4E78', 'DASHBOARD TAB'],
+  [24, false, 10, 'FF000000', "One-page roster view — each agent's most recent complete day, month-to-date average, tier, time zone, and a red/green flag."]
+];
+
+const DAILY_HEADERS = ['Date', 'Day', 'Scheduled Shift', 'Sched. Start', 'Sched. End', 'Login (State Event)', 'First Call', 'Logout (State Event)', 'Last Call',
+  'Tardy (min)', 'Early Dep (min)', 'Attendance Code', 'Timesheet Clock In', 'Timesheet Clock Out', 'Clock-In Diff (min)', 'Timesheet Break/Lunch (min)',
+  'Break Diff vs Scheduled (min)', 'Break/Lunch Log (Timesheet)', 'Calls Taken', 'Outbound Calls', 'Denied', 'AHT (min)', 'ACW (min)', 'ACW Rate (min/hr)',
+  'Hold Time (min)', 'Not Ready (min)', 'System Setup (min)', 'Lunch (min)', 'Break Total (min)', 'Break Longest (min)', 'Hours Worked (Approved)', 'Notes', 'ISO Wk'];
+const ATT_CODES = ['OK', 'NO ACTIVITY - VERIFY', 'PTO', 'Excused Absence', 'Unexcused Absence', 'Excused Tardy', 'Unexcused Tardy', 'Excused Early Leave', 'Unexcused Early Leave'];
+
+function buildWorkbook(ctx) {
+  const { pyRound, colLetter, fromYmd, pyWeekday, parseClock, fmtClock, mdyy } = _UB;
+  const { fmtMmss, pyFloatStr } = _RB;
+  const { data, recaps, tiers, timezones, overrides, pto, qtdCarry, qtdLabel, ytdCarry, ytdLabel, monthLabel, monthLabelLong, quarterLabel, year, dateStart, monthFirst } = ctx;
+  const AGENTS = Object.keys(data).sort((a, b) => a < b ? -1 : a > b ? 1 : 0);
+  const TZL = v => v === 0 ? 'EST' : v === 1 ? 'CST' : v === 2 ? 'MST' : 'Unconfirmed';
+  const FN = 'Arial';
+  const font = (o = {}) => ({ name: FN, size: o.size || 10, bold: !!o.bold, italic: !!o.italic, color: { argb: 'FF' + (o.color || '000000') } });
+  const fill = hex => ({ type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF' + hex }, bgColor: { argb: 'FF' + hex } });
+  const thin = { style: 'thin', color: { argb: 'FFB7B7B7' } }, BORDER = { left: thin, right: thin, top: thin, bottom: thin };
+  const HDR_FONT = font({ bold: true, color: 'FFFFFF' }), HDR_FILL = fill('1F4E78');
+  const NORMAL = font(), LABEL = font({ bold: true }), PENDING = font({ size: 9, italic: true, color: '999999' });
+  const GREEN = fill('C6EFCE'), RED = fill('FFC7CE'), GREEN_FONT = { color: { argb: 'FF006100' } }, RED_FONT = { color: { argb: 'FF9C0006' } };
+  const F = s => ({ formula: s.startsWith('=') ? s.slice(1) : s });
+  const val = v => (typeof v === 'string' && v.startsWith('=')) ? F(v) : v;
+
+  const wb = new _ExcelJS.Workbook();
+  wb.calcProperties.fullCalcOnLoad = true;
+
+  // README
+  const rd = wb.addWorksheet('README - Start Here', { views: [{ showGridLines: false }] });
+  rd.getColumn('A').width = 4; rd.getColumn('B').width = 100;
+  const ds = fromYmd(dateStart);
+  const qtdPhrase = qtdLabel === 'none' ? 'nothing yet (first month of the quarter)' : qtdLabel;
+  const startNote = `This tracker starts on ${_UB.WEEKDAYS[ds.getUTCDay()]} ${ds.getUTCMonth() + 1}/${ds.getUTCDate()}/${ds.getUTCFullYear()}`
+    + (dateStart === monthFirst ? '' : ` rather than the 1st, because ${monthLabelLong} began mid-week`)
+    + '. Weeks run Sunday through Saturday (matching the posted schedule). '
+    + (qtdLabel === 'none' ? `This is the first month of ${quarterLabel}, so Quarter-to-Date starts fresh` : `Quarter-to-Date blends in prior months of ${quarterLabel} (${qtdLabel})`) + `; Year-to-Date also adds ${ytdLabel === 'none' ? (monthFirst.slice(5, 7) === '01' ? 'nothing (first month of the year)' : 'nothing (no earlier months tracked)') : ytdLabel}.`;
+  for (const [row, bold, size, color, text] of README_TEMPLATE) {
+    const c = rd.getCell(row, 2); c.value = text.replace('{MONTH}', monthLabelLong).replace('{START_NOTE}', startNote);
+    c.font = { name: FN, bold, size, color: { argb: color } }; c.alignment = { wrapText: true, vertical: 'top' };
+  }
+  const dash = wb.addWorksheet('Dashboard');
+
+  const L = {}; DAILY_HEADERS.forEach((h, i) => { L[h] = colLetter(2 + i); });
+  const shiftPairs = s => [...(s || '').matchAll(/(\d{1,2}:\d{2}\s*[AP]M)-(\d{1,2}:\d{2}\s*[AP]M)/g)].map(m => [m[1], m[2]]);
+  const pc = x => parseClock(x.replace(/ /g, ''));
+  const shiftBounds = s => {
+    const p = shiftPairs(s).filter(x => pc(x[0]) && pc(x[1])); if (!p.length) return ['', ''];
+    const st = p.map(x => pc(x[0]).getTime()), en = p.map(x => pc(x[1]).getTime());
+    return [fmtClock(new Date(Math.min(...st))), fmtClock(new Date(Math.max(...en)))];
+  };
+  const schedBreak = s => { const p = shiftPairs(s); if (p.length !== 2 || p.some(x => !pc(x[0]) || !pc(x[1]))) return null; const g = (pc(p[1][0]) - pc(p[0][1])) / 60000; return g > 0 ? g : null; };
+  const mins = (secs, present) => secs ? pyRound(secs / 60, 2) : (present ? 0 : null);
+  const sheetMap = {};
+
+  for (const agent of AGENTS) {
+    const sn = agent.replace(/[\\/*?:[\]]/g, '').slice(0, 31);
+    const ws = wb.addWorksheet(sn);
+    const rows = data[agent], tier = tiers[agent], tz = timezones[agent], tzl = TZL(tz);
+    const set = (addr, v, style) => { const c = ws.getCell(addr); c.value = val(v); if (style) Object.assign(c, style); return c; };
+    const cellRC = (r, c, v, style) => { const x = ws.getCell(r, c); x.value = val(v); if (style) Object.assign(x, style); return x; };
+    set('B2', agent, { font: font({ bold: true, size: 14, color: '1F4E78' }) });
+    set('B3', `Primerica Program — Performance Tracker   |   Tier: ${tier || 'Unassigned'}   |   Timesheet TZ: ${tzl}` + (tzl !== 'Unconfirmed' ? '' : ' (needs manual confirmation — see README)') + (pto[agent] ? '   |   Status: ON PTO' : ''),
+      { font: font({ italic: true, size: 9, color: tier === 'T2' ? '1F4E78' : '666666' }) });
+    const hr = 10, f0 = 11, f1 = f0 + rows.length - 1;
+    const weeks = [...new Set(rows.map(r => r.iso_week))].sort((a, b) => a - b);
+    const full = weeks.filter(w => rows.some(x => x.iso_week === w && pyWeekday(fromYmd(x.date)) !== 6));
+    const lwList = full.length ? full : weeks, lw = lwList[lwList.length - 1];
+    const lwEnd = fromYmd(rows.filter(r => r.iso_week === lw).map(r => r.date).sort().pop()), lwLabel = mdyy(lwEnd);
+    const wkHdr = f1 + 2, wkLast = wkHdr + 1 + weeks.length, lwRow = wkHdr + 2 + weeks.indexOf(lw);
+    const moRow = wkLast + 2, cfTitle = moRow + 2, cfQ = cfTitle + 2, cfY = cfTitle + 3, recapRow = cfY + 4;
+    const rng = c => `$${c}$${f0}:$${c}$${f1}`, wkr = rng(L['ISO Wk']);
+    const wkSum = c => `SUMIFS(${rng(c)},${wkr},${lw})`, wkAvg = c => `IFERROR(AVERAGEIFS(${rng(c)},${wkr},${lw}),"")`;
+    const moSum = c => `SUM(${rng(c)})`, moAvg = c => `IFERROR(AVERAGE(${rng(c)}),"")`;
+    const moDays = `COUNT(${rng(L['AHT (min)'])})`, moCalls = moSum(L['Calls Taken']);
+    const CF = { days: 'C', calls: 'D', denied: 'E', aht: 'F', acw: 'G', hold: 'H', nr: 'I', qa: 'J', outbound: 'K' };
+    const q = {}, y = {}; for (const [k, v] of Object.entries(CF)) { q[k] = `${v}${cfQ}`; y[k] = `${v}${cfY}`; }
+
+    set('G2', 'RECAP METRICS (period averages/totals) — copy/paste into 1:1 recaps', { font: LABEL }); ws.mergeCells('G2:P2');
+    ['Period', 'Total Calls Taken (Inbound)', 'Outbound Calls', 'Total Calls', 'Total Denied Calls', 'AHT (avg)', 'ACW (avg)', 'Hold Time (avg)', 'Not Ready (avg)', 'QA Score (avg)']
+      .forEach((h, i) => cellRC(3, 7 + i, h, { font: HDR_FONT, fill: HDR_FILL, border: BORDER, alignment: { horizontal: 'center', wrapText: true } }));
+    ws.getRow(3).height = 28;
+    const T = L['Calls Taken'], Uc = L['Outbound Calls'], V = L['Denied'];
+    const avgCols = [L['AHT (min)'], L['ACW (min)'], L['Hold Time (min)'], L['Not Ready (min)']];
+    const r4 = [`This Week (as of ${lwLabel})`, `=${wkSum(T)}`, `=${wkSum(Uc)}`, '=H4+I4', `=${wkSum(V)}`, ...avgCols.map(c => `=IFERROR((${wkAvg(c)})/1440,"")`), `=IF(G${lwRow}="","",G${lwRow})`];
+    const r5 = [`This Month (${monthLabel})`, `=${moSum(T)}`, `=${moSum(Uc)}`, '=H5+I5', `=${moSum(V)}`, ...avgCols.map(c => `=IFERROR((${moAvg(c)})/1440,"")`), `=IF(G${moRow}="","",G${moRow})`];
+    const dq = `(${q.days}+${moDays})`, cq = `(${q.calls}+${moCalls})`;
+    const r6 = [`This Quarter QTD (${quarterLabel})`, `=${q.calls}+H5`, `=${q.outbound}+I5`, '=H6+I6', `=${q.denied}+K5`,
+      `=IFERROR((${q.aht}*${q.calls}+N(L5)*${moCalls})/MAX(1,${cq}),"")`, ...[['acw', 'M'], ['hold', 'N'], ['nr', 'O'], ['qa', 'P']].map(([k, col]) => `=IFERROR((${q[k]}*${q.days}+N(${col}5)*${moDays})/MAX(1,${dq}),"")`)];
+    const r7 = [`This Year YTD (${year})`, `=${y.calls}+H6`, `=${y.outbound}+I6`, '=H7+I7', `=${y.denied}+K6`,
+      `=IFERROR((${y.aht}*${y.calls}+N(L6)*${cq})/MAX(1,(${y.calls}+${cq})),"")`, ...[['acw', 'M'], ['hold', 'N'], ['nr', 'O'], ['qa', 'P']].map(([k, col]) => `=IFERROR((${y[k]}*${y.days}+N(${col}6)*${dq})/MAX(1,(${y.days}+${dq})),"")`)];
+    [r4, r5, r6, r7].forEach((vals, i) => vals.forEach((v, ci) => {
+      const c = cellRC(4 + i, 7 + ci, v, { border: BORDER, font: ci === 0 ? LABEL : NORMAL });
+      if (ci >= 5 && ci <= 8) c.numFmt = '[h]:mm:ss'; if (ci === 9) c.numFmt = '0.0%';
+    }));
+    set('G9', `AHT is call-weighted; ACW/Hold/Not Ready/QA are day-weighted across the carry-forward periods below. Quarter-to-Date includes ${qtdPhrase} from the carry-forward table; Year-to-Date also includes ${ytdLabel === 'none' ? (monthFirst.slice(5, 7) === '01' ? 'nothing yet (first month of the year)' : 'no earlier months (tracking began in July)') : ytdLabel}.`,
+      { font: PENDING, alignment: { wrapText: true } }); ws.mergeCells('G9:P9'); ws.getRow(9).height = 30;
+
+    DAILY_HEADERS.forEach((h, i) => cellRC(hr, 2 + i, h, { font: HDR_FONT, fill: HDR_FILL, border: BORDER, alignment: { horizontal: 'center', wrapText: true } }));
+    ws.getRow(hr).height = 30;
+    ws.views = [{ state: 'frozen', xSplit: 2, ySplit: 10, topLeftCell: 'C11', showGridLines: false }];
+    const tzAdj = pyFloatStr((tz || 0) / 24);
+    rows.forEach((rec, i) => {
+      const r = f0 + i, [ss, se] = shiftBounds(rec.scheduled_shift);
+      const G = L['Login (State Event)'], Hc = L['First Call'], I = L['Logout (State Event)'], J = L['Last Call'], E = L['Sched. Start'], Fc = L['Sched. End'], D = L['Scheduled Shift'];
+      set(`B${r}`, fromYmd(rec.date)).numFmt = 'mm/dd/yyyy'; set(`C${r}`, rec.weekday);
+      set(`${D}${r}`, rec.scheduled_shift || ''); set(`${E}${r}`, ss); set(`${Fc}${r}`, se);
+      set(`${G}${r}`, rec.login_time); set(`${Hc}${r}`, rec.first_activity); set(`${I}${r}`, rec.logout_time); set(`${J}${r}`, rec.last_activity);
+      const lr = `IF(${G}${r}<>"",${G}${r},${Hc}${r})`, lo = `IF(${I}${r}<>"",${I}${r},${J}${r})`;
+      set(`${L['Tardy (min)']}${r}`, `=IF(OR(${E}${r}="",(${lr})=""),"",MAX(0,ROUND((TIMEVALUE(${lr})-TIMEVALUE(${E}${r}))*1440,0)))`);
+      set(`${L['Early Dep (min)']}${r}`, `=IF(OR(${Fc}${r}="",(${lo})=""),"",MAX(0,ROUND((TIMEVALUE(${Fc}${r})-TIMEVALUE(${lo}))*1440,0)))`);
+      const key = `${agent}|${rec.date}`;
+      set(`${L['Attendance Code']}${r}`, overrides[key] != null ? overrides[key] : `=IF(${D}${r}="","",IF(AND(${T}${r}=0,${Uc}${r}=0,${Hc}${r}=""),"NO ACTIVITY - VERIFY","OK"))`);
+      const N_ = L['Timesheet Clock In'];
+      set(`${N_}${r}`, rec.timesheet_clock_in || ''); set(`${L['Timesheet Clock Out']}${r}`, rec.timesheet_clock_out || '');
+      set(`${L['Clock-In Diff (min)']}${r}`, `=IF(OR(${N_}${r}="",${G}${r}=""),"",ROUND(ABS((TIMEVALUE(${N_}${r})+${tzAdj})-TIMEVALUE(${G}${r}))*1440,0))`);
+      const tsb = rec.timesheet_break_min; set(`${L['Timesheet Break/Lunch (min)']}${r}`, tsb);
+      const sb = schedBreak(rec.scheduled_shift);
+      set(`${L['Break Diff vs Scheduled (min)']}${r}`, (sb != null && tsb != null) ? pyRound(Math.abs(sb - tsb)) : '');
+      set(`${L['Break/Lunch Log (Timesheet)']}${r}`, rec.timesheet_break_log || '');
+      const act = rec.inbound_delivered || rec.outbound;
+      set(`${T}${r}`, rec.inbound_delivered); set(`${Uc}${r}`, rec.outbound); set(`${V}${r}`, rec.prior_denials_on_calls_taken);
+      set(`${L['AHT (min)']}${r}`, rec.inbound_delivered ? pyRound(rec.handle_secs / 60 / rec.inbound_delivered, 2) : null);
+      const X = L['ACW (min)'], AF = L['Hours Worked (Approved)'];
+      set(`${X}${r}`, act ? pyRound(rec.wrap_secs / 60, 2) : null);
+      const hd = `IF(${AF}${r}<>"",${AF}${r},IF(AND(${E}${r}<>"",${Fc}${r}<>""),(TIMEVALUE(${Fc}${r})-TIMEVALUE(${E}${r}))*24,""))`;
+      set(`${L['ACW Rate (min/hr)']}${r}`, `=IF(OR(${X}${r}="",${hd}=""),"",ROUND(${X}${r}/(${hd}),2))`);
+      set(`${L['Hold Time (min)']}${r}`, act ? pyRound(rec.hold_secs / 60, 2) : null);
+      const lg = !!rec.login_time;
+      set(`${L['Not Ready (min)']}${r}`, mins(rec.not_ready_secs, lg)); set(`${L['System Setup (min)']}${r}`, mins(rec.system_setup_secs, lg));
+      set(`${L['Lunch (min)']}${r}`, mins(rec.lunch_secs, lg)); set(`${L['Break Total (min)']}${r}`, mins(rec.break_total_secs, lg));
+      set(`${L['Break Longest (min)']}${r}`, mins(rec.break_max_secs, lg));
+      set(`${AF}${r}`, rec.reg_hours_approved); set(`${L['ISO Wk']}${r}`, rec.iso_week);
+      for (let cc = 2; cc < DAILY_HEADERS.length + 2; cc++) { const c = ws.getCell(r, cc); c.border = BORDER; c.font = NORMAL; }
+    });
+
+    cellRC(wkHdr, 2, 'WEEKLY AVERAGES (Sunday-Saturday weeks)', { font: LABEL });
+    ['Week Beginning', 'Avg AHT (min)', 'Avg ACW Rate (min/hr)', 'Avg Tardy (min)', 'Avg Early Dep (min)', 'QA Weekly Avg (%)', 'Total Calls Taken', 'Total Outbound']
+      .forEach((h, i) => cellRC(wkHdr + 1, 2 + i, h, { font: HDR_FONT, fill: HDR_FILL, border: BORDER, alignment: { horizontal: 'center', wrapText: true } }));
+    weeks.forEach((wk, wi) => {
+      const r = wkHdr + 2 + wi;
+      cellRC(r, 2, mdyy(fromYmd(rows.filter(x => x.iso_week === wk).map(x => x.date).sort()[0])));
+      [[3, L['AHT (min)']], [4, L['ACW Rate (min/hr)']], [5, L['Tardy (min)']], [6, L['Early Dep (min)']]].forEach(([ci, col]) => cellRC(r, ci, `=IFERROR(ROUND(AVERAGEIFS(${rng(col)},${wkr},${wk}),2),"")`));
+      const qv = rows.filter(x => x.iso_week === wk && x.qa_weekly_avg != null).map(x => x.qa_weekly_avg);
+      cellRC(r, 7, qv.length ? pyRound(_UB.pySum(qv) / qv.length, 3) : null).numFmt = '0.0%';
+      cellRC(r, 8, `=SUMIFS(${rng(T)},${wkr},${wk})`); cellRC(r, 9, `=SUMIFS(${rng(Uc)},${wkr},${wk})`);
+      for (let cc = 2; cc < 10; cc++) { const c = ws.getCell(r, cc); c.border = BORDER; c.font = NORMAL; }
+    });
+    cellRC(moRow, 2, `MONTHLY AVG (${monthLabel})`);
+    [[3, L['AHT (min)']], [4, L['ACW Rate (min/hr)']], [5, L['Tardy (min)']], [6, L['Early Dep (min)']]].forEach(([ci, col]) => cellRC(moRow, ci, `=IFERROR(ROUND(AVERAGE(${rng(col)}),2),"")`));
+    cellRC(moRow, 7, `=IFERROR(ROUND(AVERAGE(G${wkHdr + 2}:G${wkLast}),3),"")`).numFmt = '0.0%';
+    cellRC(moRow, 8, `=${moSum(T)}`); cellRC(moRow, 9, `=${moSum(Uc)}`);
+    for (let cc = 2; cc < 10; cc++) { const c = ws.getCell(moRow, cc); c.border = BORDER; c.font = LABEL; }
+
+    cellRC(cfTitle, 2, 'CARRY-FORWARD — prior period totals (edit the yellow cells)', { font: LABEL });
+    ['Period', 'Days', 'Total Calls', 'Total Denied', 'AHT', 'ACW', 'Hold Time', 'Not Ready', 'QA Score', 'Outbound Calls']
+      .forEach((h, i) => cellRC(cfTitle + 1, 2 + i, h, { font: HDR_FONT, fill: HDR_FILL, border: BORDER, alignment: { horizontal: 'center', wrapText: true } }));
+    const colkeys = { 3: 'days', 4: 'calls', 5: 'denied', 6: 'aht', 7: 'acw', 8: 'hold', 9: 'nr', 10: 'qa', 11: 'outbound' };
+    for (const [label, r, src] of [[`Prior Months This Quarter (${qtdLabel === 'none' ? 'none: first month of the quarter' : qtdLabel})`, cfQ, qtdCarry[agent] || {}], [`Prior Quarters This Year (${ytdLabel === 'none' ? (monthFirst.slice(5, 7) === '01' ? 'none: first quarter of the year' : 'none tracked') : ytdLabel})`, cfY, ytdCarry[agent] || {}]]) {
+      cellRC(r, 2, label, { font: NORMAL, border: BORDER });
+      for (const [col, k] of Object.entries(colkeys)) {
+        let v = src[k]; if (v == null && k !== 'qa') v = 0; if (v === undefined) v = null;
+        const c = cellRC(r, +col, v, { fill: fill('FFFF00'), font: NORMAL, border: BORDER });
+        if (+col >= 6 && +col <= 9) c.numFmt = '[h]:mm:ss'; if (+col === 10) c.numFmt = '0.0%';
+      }
+    }
+    cellRC(cfY + 1, 2, 'Carry-forward values are saved inside this file by the Agent Tracker tool; edit the yellow cells only for one-off corrections.', { font: PENDING });
+
+    const R = col => `${col}${f0}:${col}${f1}`;
+    const cf = (ref, rules) => ws.addConditionalFormatting({ ref, rules });
+    const cellIs = (operator, formulae, style) => ({ type: 'cellIs', operator, formulae, style });
+    const expr = (formula, style) => ({ type: 'expression', formulae: [formula], style });
+    const GOOD = { fill: GREEN, font: GREEN_FONT }, BAD = { fill: RED, font: RED_FONT };
+    for (const [col, og, ob, v] of [[L['AHT (min)'], 'lessThanOrEqual', 'greaterThan', '7.5'], [L['ACW Rate (min/hr)'], 'lessThanOrEqual', 'greaterThan', '2'],
+      [L['Clock-In Diff (min)'], 'lessThanOrEqual', 'greaterThan', '5'], [L['Break Diff vs Scheduled (min)'], 'lessThanOrEqual', 'greaterThan', '5'],
+      [L['Hold Time (min)'], 'lessThan', 'greaterThanOrEqual', '30'], [L['Denied'], 'lessThan', 'greaterThanOrEqual', '4'],
+      [L['Not Ready (min)'], 'lessThan', 'greaterThanOrEqual', '10'], [L['System Setup (min)'], 'lessThanOrEqual', 'greaterThan', '5'],
+      [L['Lunch (min)'], 'lessThanOrEqual', 'greaterThan', '30'], [L['Break Longest (min)'], 'lessThanOrEqual', 'greaterThan', '10']]) {
+      cf(R(col), [cellIs(og, [v], GOOD)]); cf(R(col), [cellIs(ob, [v], BAD)]);
+    }
+    const K_ = L['Tardy (min)'];
+    cf(R(K_), [expr(`AND(${K_}${f0}<>"",${K_}${f0}<=5)`, { fill: GREEN })]); cf(R(K_), [expr(`${K_}${f0}>5`, BAD)]);
+    const M_ = L['Attendance Code'];
+    for (const code of ['NO ACTIVITY - VERIFY', 'Unexcused Absence', 'Unexcused Tardy', 'Unexcused Early Leave']) cf(R(M_), [expr(`$${M_}${f0}="${code}"`, BAD)]);
+    for (const code of ['PTO', 'Excused Absence', 'Excused Tardy', 'Excused Early Leave']) cf(R(M_), [expr(`$${M_}${f0}="${code}"`, { fill: fill('D9E8FB') })]);
+    ws.dataValidations.add(R(M_), { type: 'list', allowBlank: true, formulae: [`"${ATT_CODES.join(',')}"`], showErrorMessage: true, errorTitle: 'Invalid attendance code', error: 'Pick a value from the list.' });
+    const qr = `G${wkHdr + 2}:G${wkLast}`;
+    cf(qr, [cellIs('greaterThanOrEqual', ['0.85'], GOOD)]); cf(qr, [cellIs('lessThan', ['0.85'], BAD)]);
+    const widths = { B: 11, C: 10, D: 22, E: 10, F: 10, G: 10, H: 10, I: 10, J: 10, K: 9, L: 9, M: 16, N: 11, O: 11, P: 10, Q: 11, R: 12, S: 30, T: 9, U: 9,
+      V: 8, W: 8, X: 8, Y: 10, Z: 9, AA: 9, AB: 10, AC: 8, AD: 10, AE: 10, AF: 14, AG: 20 };
+    for (const [c, w] of Object.entries(widths)) ws.getColumn(c).width = w;
+    ws.getColumn(L['ISO Wk']).hidden = true;
+    sheetMap[agent] = { sn, f0, f1, moRow };
+
+    // ---- Weekly Recap ----
+    const rec = recaps[agent]; if (!rec) continue;
+    const m = rec.metrics, qtd = rec.qtd, nar = rec.recap;
+    const SEC_FILL = fill('1F4E78'), SEC_FONT = font({ bold: true, size: 11, color: 'FFFFFF' }), STAT_LBL = font({ size: 9, color: '666666' });
+    let r = recapRow;
+    cellRC(r, 2, `WEEKLY RECAP — as of ${lwLabel} (copy/paste for ${agent.split(' ')[0]})`, { font: font({ bold: true, size: 13, color: '1F4E78' }) });
+    ws.mergeCells(`B${r}:M${r}`); r += 2;
+    const sec = (row, text) => { cellRC(row, 2, text, { font: SEC_FONT, fill: SEC_FILL }); ws.mergeCells(`B${row}:M${row}`); ws.getRow(row).height = 22; return row + 1; };
+    const body = (row, text, h) => {
+      cellRC(row, 2, text, { font: NORMAL, alignment: { wrapText: true, vertical: 'top' } }); ws.mergeCells(`B${row}:M${row}`);
+      const s = String(text); ws.getRow(row).height = h || Math.max(30, 14 * ((s.match(/\n/g) || []).length + 1 + Math.floor([...s].length / 110))); return row + 1;
+    };
+    const stat = (row, col, v, lbl, color) => {
+      cellRC(row, col, v, { font: font({ bold: true, size: 14, color: color || '1A1D2E' }), alignment: { horizontal: 'center' } });
+      ws.mergeCells(row, col, row, col + 1);
+      cellRC(row + 1, col, lbl, { font: STAT_LBL, alignment: { horizontal: 'center' } }); ws.mergeCells(row + 1, col, row + 1, col + 1);
+    };
+    r = sec(r, '📞 CALL VOLUME & HANDLE TIME');
+    stat(r, 2, m.total_calls, 'Total Calls'); stat(r, 4, m.denied, 'Denied', m.denied <= 4 ? '16A86A' : 'D9534F');
+    stat(r, 6, fmtMmss(m.aht_min), 'Avg Handle Time', (m.aht_min != null && m.aht_min <= 10) ? '16A86A' : 'D9534F'); r += 2;
+    r = body(r, nar.call_volume) + 1;
+    r = sec(r, '📋 QA SUMMARY (most recent evaluation)'); r = body(r, nar.qa_summary, 110) + 1;
+    r = sec(r, '🖥️ USER STATE SUMMARY (this week)'); r = body(r, nar.user_state_lines, 100); r = body(r, nar.user_state_narrative) + 1;
+    const cr = rng(M_), sr = rng(L['Scheduled Shift']);
+    const cif = code => `COUNTIFS(${cr},"${code}",${wkr},${lw})`;
+    const schedF = `COUNTIFS(${wkr},${lw},${sr},"<>")`, exa = `(${cif('PTO')}+${cif('Excused Absence')})`;
+    const worked = `((${schedF})-${exa}-${cif('Unexcused Absence')}-${cif('NO ACTIVITY - VERIFY')})`;
+    r = sec(r, '📅 ATTENDANCE SUMMARY');
+    stat(r, 2, `=${worked}&"/"&${schedF}`, 'Days Worked'); stat(r, 4, `=IFERROR(${worked}/MAX(1,(${schedF})-${exa}),"")`, 'Attendance');
+    stat(r, 6, `=${cif('Unexcused Tardy')}`, 'Unexcused Late Arrivals'); ws.getCell(r, 4).numFmt = '0%';
+    cf(`F${r}`, [cellIs('equal', ['0'], { font: GREEN_FONT })]); cf(`F${r}`, [cellIs('greaterThan', ['0'], { font: RED_FONT })]); r += 2;
+    const A = {};
+    [['Excused Absence', exa], ['Unexcused Absence', cif('Unexcused Absence')], ['Excused Tardy', cif('Excused Tardy')], ['Unexcused Tardy', cif('Unexcused Tardy')],
+      ['Excused Early Leave', cif('Excused Early Leave')], ['Unexcused Early Leave', cif('Unexcused Early Leave')]].forEach(([lbl, f_], i) => {
+      const col = 2 + 2 * i;
+      cellRC(r, col, `=${f_}`, { font: font({ bold: true, size: 11 }), alignment: { horizontal: 'center' } });
+      cellRC(r + 1, col, lbl, { font: font({ size: 8, color: '666666' }), alignment: { horizontal: 'center', wrapText: true } });
+      ws.mergeCells(r + 1, col, r + 1, col + 1); A[lbl] = `${colLetter(col)}${r}`;
+    });
+    ws.getRow(r + 1).height = 26; r += 2;
+    const narr = `=IF(${schedF}=0,"No posted schedule on file for this week yet, so attendance can't be scored — check the Data-export upload.",`
+      + `IF(AND(${A['Unexcused Absence']}=0,${A['Unexcused Tardy']}=0,${A['Unexcused Early Leave']}=0),`
+      + `"Excellent attendance and punctuality this week."&IF((${A['Excused Absence']}+${A['Excused Tardy']}+${A['Excused Early Leave']})>0," Any time off or lateness this week was pre-approved/excused.",""),`
+      + `"Attendance needs attention this week: "&IF(${A['Unexcused Absence']}>0,${A['Unexcused Absence']}&" unexcused absence(s). ","")&`
+      + `IF(${A['Unexcused Tardy']}>0,${A['Unexcused Tardy']}&" unexcused late arrival(s). ","")&`
+      + `IF(${A['Unexcused Early Leave']}>0,${A['Unexcused Early Leave']}&" unexcused early departure(s). ","")&"Please discuss with the agent."))`;
+    r = body(r, narr, 50) + 1;
+    r = sec(r, '🎯 COACHING FOCUS'); r = body(r, nar.coaching_focus.map(b => `• ${b}`).join('\n'), 18 * nar.coaching_focus.length + 10) + 1;
+    r = sec(r, '⭐ OVERALL PERFORMANCE NOTES'); r = body(r, nar.overall_performance, 70) + 1;
+    r = sec(r, '📈 QUARTER-TO-DATE METRICS');
+    cellRC(r, 2, `Quarterly Metrics Average (${quarterLabel}, thus far)`, { font: LABEL, fill: fill('F0F2F7'), alignment: { horizontal: 'center' } }); ws.mergeCells(`B${r}:M${r}`); r += 1;
+    const ob = qtd.outbound_calls || 0;
+    [['Total Calls Taken (Inbound)', qtd.total_calls, null], ['Outbound Calls', ob, null], ['Total Calls (Inbound + Outbound)', qtd.total_calls + ob, null],
+      ['Total Denied Calls', qtd.denied, qtd.denied === 0 ? '16A86A' : null],
+      ['AHT', fmtMmss(qtd.aht_min), (qtd.aht_min || 0) <= 10 ? '16A86A' : 'D9534F'], ['ACW', fmtMmss(qtd.acw_min), (qtd.acw_min || 0) <= 60 ? '16A86A' : 'D9534F'],
+      ['Hold Time', fmtMmss(qtd.hold_min), (qtd.hold_min || 0) <= 60 ? '16A86A' : 'D9534F'], ['Not Ready Time', fmtMmss(qtd.not_ready_min), (qtd.not_ready_min || 0) <= 20 ? '16A86A' : 'D9534F'],
+      ['QA Score', qtd.qa_avg != null ? `${pyFloatStr(pyRound(qtd.qa_avg * 100, 1))}%` : 'n/a', (qtd.qa_avg || 0) >= 0.85 ? '16A86A' : 'D9534F']
+    ].forEach(([lbl, v, color], qi) => {
+      const fl = qi % 2 ? fill('F8F9FC') : undefined;
+      const a = cellRC(r, 2, lbl, { font: font({ color: '444444' }) }); if (fl) a.fill = fl; ws.mergeCells(`B${r}:H${r}`);
+      const b = cellRC(r, 9, v, { font: font({ bold: true, color: color || '1A1D2E' }), alignment: { horizontal: 'right' } }); if (fl) b.fill = fl; ws.mergeCells(`I${r}:M${r}`); r += 1;
+    });
+    body(r, `These metrics represent ${agent.split(' ')[0]}'s performance for the current quarter and will continue to update as new data is uploaded.`, 30);
+  }
+
+  // ---- Dashboard ----
+  dash.views = [{ state: 'frozen', xSplit: 1, ySplit: 5, topLeftCell: 'B6', showGridLines: false }];
+  const dc = (r, c, v, style) => { const x = dash.getCell(r, c); x.value = val(v); if (style) Object.assign(x, style); return x; };
+  dc(2, 2, `Team Dashboard — ${monthLabelLong}`, { font: font({ bold: true, size: 14, color: '1F4E78' }) });
+  dc(3, 2, 'Month-to-date snapshot, pulled live from each agent tab. "Latest" columns always show yesterday.', { font: font({ italic: true, size: 9, color: '666666' }) });
+  ['Agent', 'Latest Date w/ Data', 'Latest AHT', 'Latest ACW Rate', 'Latest Tardy (min)', 'MTD Avg AHT', 'MTD Avg ACW Rate', 'MTD Avg Tardy (min)', 'MTD QA Avg', 'MTD Total Calls', 'Flag', 'Tier', 'Timesheet TZ']
+    .forEach((h, i) => dc(5, 2 + i, h, { font: HDR_FONT, fill: HDR_FILL, border: BORDER, alignment: { horizontal: 'center', wrapText: true } }));
+  AGENTS.forEach((agent, ai) => {
+    const { sn, f0, f1, moRow } = sheetMap[agent]; const row = 6 + ai, qn = `'${sn}'`, dr = `${qn}!$B$${f0}:$B$${f1}`;
+    const look = col => { const ix = `INDEX(${qn}!$${col}$${f0}:$${col}$${f1},MATCH(TODAY()-1,${dr},0))`; return `=IFERROR(IF(${ix}="","",${ix}),"")`; };
+    const blank = ref => `=IF(${ref}="","",${ref})`;
+    const vals = [agent, '=TODAY()-1', look(L['AHT (min)']), look(L['ACW Rate (min/hr)']), look(L['Tardy (min)']),
+      blank(`${qn}!$C$${moRow}`), blank(`${qn}!$D$${moRow}`), blank(`${qn}!$E$${moRow}`), blank(`${qn}!$G$${moRow}`), blank(`${qn}!$H$${moRow}`),
+      pto[agent] ? 'ON PTO' : `=IF(OR(N(G${row})>=10,N(H${row})>2,AND(J${row}<>"",J${row}<0.85)),"NEEDS COACHING",IF(OR(G${row}="",H${row}=""),"NO DATA YET","ON TRACK"))`,
+      tiers[agent] || 'Unassigned', TZL(timezones[agent])];
+    vals.forEach((v, ci) => dc(row, 2 + ci, v, { border: BORDER, font: NORMAL }));
+    dash.getCell(row, 3).numFmt = 'mm/dd/yyyy'; dash.getCell(row, 10).numFmt = '0.0%';
+  });
+  const last = 5 + AGENTS.length;
+  const dcf = (ref, rule) => dash.addConditionalFormatting({ ref, rules: [rule] });
+  const ci = (op, f, style) => ({ type: 'cellIs', operator: op, formulae: f, style });
+  dcf(`L6:L${last}`, ci('equal', ['"NEEDS COACHING"'], { fill: RED, font: RED_FONT })); dcf(`L6:L${last}`, ci('equal', ['"ON TRACK"'], { fill: GREEN, font: GREEN_FONT }));
+  dcf(`D6:D${last}`, ci('greaterThan', ['7.5'], { fill: RED, font: RED_FONT })); dcf(`D6:D${last}`, ci('lessThanOrEqual', ['7.5'], { fill: GREEN, font: GREEN_FONT }));
+  dcf(`J6:J${last}`, ci('lessThan', ['0.85'], { fill: RED, font: RED_FONT })); dcf(`J6:J${last}`, ci('greaterThanOrEqual', ['0.85'], { fill: GREEN, font: GREEN_FONT }));
+  dcf(`G6:G${last}`, ci('lessThanOrEqual', ['7.5'], { fill: GREEN, font: GREEN_FONT }));
+  dcf(`G6:G${last}`, ci('between', ['7.51', '9.99'], { fill: fill('FFF2CC'), font: { color: { argb: 'FF9C6500' } } }));
+  dcf(`G6:G${last}`, ci('greaterThanOrEqual', ['10'], { fill: RED, font: RED_FONT }));
+  dcf(`L6:L${last}`, ci('equal', ['"ON PTO"'], { fill: fill('D9E8FB') })); dcf(`M6:M${last}`, ci('equal', ['"T2"'], { fill: fill('D9E8FB') }));
+  dcf(`N6:N${last}`, ci('equal', ['"Unconfirmed"'], { fill: RED, font: RED_FONT }));
+  for (const [c, w] of Object.entries({ B: 20, C: 16, D: 11, E: 13, F: 13, G: 11, H: 13, I: 13, J: 10, K: 13, L: 16, M: 10, N: 13 })) dash.getColumn(c).width = w;
+  return wb;
+}
+if (typeof module !== 'undefined') module.exports = { buildWorkbook, ATT_CODES }; else window.TrackerBuild = { buildWorkbook, ATT_CODES };
+
+})();
+</script>
+<script>/* engine.js */
+(function () {
+// ---------- Orchestration: settings, state stored inside the workbook, month rollover ----------
+const _UE = (typeof module !== 'undefined') ? require('./util.js') : window.TrackerUtil;
+const _PE = (typeof module !== 'undefined') ? require('./parse.js') : window.TrackerParse;
+const _RE = (typeof module !== 'undefined') ? require('./recap.js') : window.TrackerRecap;
+const _BE = (typeof module !== 'undefined') ? require('./build.js') : window.TrackerBuild;
+
+const STATE_SHEET = '_TrackerData', STATE_MARK = 'AGENT_TRACKER_STATE_V1';
+const VALID_CODES = new Set(['PTO', 'Excused Absence', 'Unexcused Absence', 'Excused Tardy', 'Unexcused Tardy', 'Excused Early Leave', 'Unexcused Early Leave']);
+
+function monthSettings(state) {
+  const { lastOfMonth, sundayOnOrBefore, addDays, ymd, MONTHS } = _UE;
+  const [y, m] = state.month.split('-').map(Number);
+  const first = new Date(Date.UTC(y, m - 1, 1)), last = lastOfMonth(y, m), next = addDays(last, 1), prev = addDays(first, -1);
+  let cap = addDays(sundayOnOrBefore(next), -1);
+  if (next.getUTCMonth() === 0) cap = last;                       // December runs to 12/31: years stay separate
+  const lbl = d => `${MONTHS[d.getUTCMonth()]} ${d.getUTCFullYear()}`;
+  return { year: y, monthFirst: ymd(first), monthCap: ymd(cap), monthLabel: `${MONTHS[m - 1].slice(0, 3)} ${y}`, monthLabelLong: lbl(first),
+    quarterLabel: `Q${Math.floor((m - 1) / 3) + 1} ${y}`, qaSheets: [lbl(prev), lbl(first), lbl(next)],
+    fileName: `Agent_Performance_Tracker_${MONTHS[m - 1].slice(0, 3)}${y}.xlsx` };
+}
+
+function readState(wb) {
+  const ws = wb.getWorksheet(STATE_SHEET); if (!ws) return null;
+  if (_UE.cellVal(ws.getCell('A1').value) !== STATE_MARK) return null;
+  let s = ''; for (let r = 2; r <= ws.rowCount; r++) { const v = _UE.cellVal(ws.getCell(r, 1).value); if (v) s += v; }
+  try { return JSON.parse(s); } catch (e) { return null; }
+}
+function writeState(wb, state) {
+  const ws = wb.addWorksheet(STATE_SHEET); ws.state = 'veryHidden';
+  ws.getCell('A1').value = STATE_MARK;
+  const s = JSON.stringify(state);
+  for (let i = 0, r = 2; i < s.length; i += 30000, r++) ws.getCell(r, 1).value = s.slice(i, i + 30000);
+}
+
+function nextMonthState(state) {
+  const s = JSON.parse(JSON.stringify(state));
+  const [py, pm] = s.month.split('-').map(Number);
+  const [y, m] = pm < 12 ? [py, pm + 1] : [py + 1, 1];
+  const q = mm => Math.floor((mm - 1) / 3);
+  if (y !== py) { s.settings.qtd_prior = []; s.settings.ytd_prior = []; }
+  else if (q(m) !== q(pm)) { s.settings.ytd_prior = [...s.settings.ytd_prior, ...s.settings.qtd_prior, s.month]; s.settings.qtd_prior = []; }
+  else s.settings.qtd_prior = [...s.settings.qtd_prior, s.month];
+  s.month = `${y}-${String(m).padStart(2, '0')}`;
+  const first = new Date(Date.UTC(y, m - 1, 1));
+  s.settings.date_start = _UE.ymd(m === 1 ? first : _UE.sundayOnOrBefore(first));
+  s.settings.date_end = 'auto';
+  delete s.date_end;
+  return s;
+}
+
+// Team Lead attendance codes from every copy of THIS month's tracker provided (snapshots aren't always cumulative).
+function collectAttendance(trackers, state, ms) {
+  const saved = { ...(state.attendance[state.month] || {}) };
+  const auto = new Set((state.auto_pto || {})[state.month] || []);
+  const found = {};
+  for (const t of trackers) {
+    const d = t.wb.getWorksheet('Dashboard');
+    if (!d || !String(_UE.cellVal(d.getCell('B2').value) || '').includes(ms.monthLabelLong)) continue;
+    t.wb.eachSheet(ws => {
+      if (['README - Start Here', 'Dashboard', STATE_SHEET].includes(ws.name)) return;
+      let ac = null; for (let c = 2; c < 40; c++) if (_UE.cellVal(ws.getCell(10, c).value) === 'Attendance Code') { ac = c; break; }
+      if (!ac) return;
+      const agent = _UE.cellVal(ws.getCell('B2').value);
+      for (let r = 11; r < 60; r++) {
+        const dv = _UE.cellVal(ws.getCell(r, 2).value), raw = ws.getCell(r, ac).value;
+        if (!(dv instanceof Date) || raw == null || typeof raw === 'object') continue;     // formulas = default codes, not Team Lead entries
+        const k = `${agent}|${_UE.ymd(dv)}`;
+        if (VALID_CODES.has(raw) && !(auto.has(k) && raw === 'PTO')) found[k] = raw;
+      }
+    });
+  }
+  const changed = Object.entries(found).filter(([k, v]) => saved[k] !== v);
+  Object.assign(saved, found);
+  return { saved, changed };
+}
+
+function monthSummary(data, ms, dateStart, dateEnd, month) {
+  const { pyRound, excelRound, mean, fromYmd, MONTHS } = _UE;
+  const agents = {};
+  for (const [a, rows] of Object.entries(data)) {
+    const act = rows.filter(r => r.inbound_delivered || r.outbound);
+    const aht = rows.filter(r => r.inbound_delivered).map(r => pyRound(r.handle_secs / 60 / r.inbound_delivered, 2));
+    const acw = act.map(r => pyRound(r.wrap_secs / 60, 2)), hold = act.map(r => pyRound(r.hold_secs / 60, 2));
+    const nr = rows.filter(r => r.not_ready_secs || r.login_time).map(r => r.not_ready_secs ? pyRound(r.not_ready_secs / 60, 2) : 0);
+    const wk = {}; for (const r of rows) if (r.qa_weekly_avg != null) (wk[r.iso_week] = wk[r.iso_week] || []).push(r.qa_weekly_avg);
+    const qa = Object.values(wk).map(v => pyRound(_UE.pySum(v) / v.length, 3));
+    const m = L => L.length ? mean(L) / 1440 : null;
+    const sum = f => rows.reduce((s, r) => s + f(r), 0);
+    agents[a] = { days: aht.length, calls: sum(r => r.inbound_delivered), outbound: sum(r => r.outbound), denied: sum(r => r.prior_denials_on_calls_taken),
+      aht: m(aht), acw: m(acw), hold: m(hold), nr: m(nr), qa: qa.length ? excelRound(mean(qa), 3) : null };
+  }
+  const ds = fromYmd(dateStart), de = fromYmd(dateEnd);
+  return { label: `${MONTHS[Number(month.split('-')[1]) - 1]}: ${ds.getUTCMonth() + 1}/${ds.getUTCDate()}-${de.getUTCMonth() + 1}/${de.getUTCDate()}`, through: dateEnd, agents };
+}
+
+/** inputs: { csv:[{name, rows}], xlsx:[{name, wb}] }, state: the tool's memory. Returns { workbook, state, log, unmatched, ... } */
+function runTracker(inputs, state, opts = {}) {
+  const logLines = [], log = { note: s => logLines.push({ type: 'note', text: s }), warn: s => logLines.push({ type: 'warn', text: s }), info: s => logLines.push({ type: 'info', text: s }) };
+  state = JSON.parse(JSON.stringify(state));
+  state.attendance = state.attendance || {}; state.auto_pto = state.auto_pto || {}; state.carry = state.carry || {};
+  const ms = monthSettings(state);
+  for (const f of inputs.csv) if (f.kind === undefined) f.kind = classifyCsv(f.rows);
+  for (const f of inputs.xlsx) if (f.kind === undefined) f.kind = classifyXlsx(f.wb);
+  const need = (kind, label) => { if (!inputs.csv.concat(inputs.xlsx).some(f => f.kind === kind)) throw new Error(`Missing ${label}.`); };
+  need('dh', 'the DetailedHistory report (.csv)'); need('us', 'the UserStateDetail report (.csv)');
+  need('sched', 'the schedule export (Data-export .csv)'); need('qa', 'the Call Review Team Checklist (.xlsx)');
+
+  const trackers = inputs.xlsx.filter(f => f.kind === 'tracker');
+  const att = collectAttendance(trackers, state, ms);
+  state.attendance[state.month] = att.saved;
+  log.info(`Team Lead attendance codes: ${Object.keys(att.saved).length} kept, ${att.changed.length} new or changed.`);
+  for (const [k, v] of att.changed.sort()) log.info(`New code: ${k.replace('|', ' on ')}: ${v}`);
+
+  const parsed = _PE.parseReports(inputs, { team: state.team, dateStart: state.settings.date_start, dateEnd: state.settings.date_end || 'auto',
+    monthCap: ms.monthCap, qaSheets: ms.qaSheets, timezonesLast: state.timezones_last || {}, volumeHistory: state.dh_volume || {}, now: opts.now || _UE.nowNaive() }, log);
+  const pto = _RE.ptoStatus(parsed.data, state.team.on_pto || []);
+  state.auto_pto[state.month] = Object.entries(pto).flatMap(([a, ds]) => ds.map(d => `${a}|${d}`)).sort();
+  for (const [a, ds] of Object.entries(pto)) if (ds.length) log.info(`${a} is marked ON PTO: PTO code applied to ${ds.join(', ')}.`);
+  if (state.rebuilt_from_tracker) log.note('First build from this tracker: the roster, tiers, time zones, PTO list, and quarter/year totals were read from its tabs. They are saved in the new file from now on.');
+  delete state.rebuilt_from_tracker;
+  const qtd = _RE.loadCarry(state, state.settings.qtd_prior), ytd = _RE.loadCarry(state, state.settings.ytd_prior);
+  const recaps = _RE.computeRecaps(parsed.data, parsed.qaNotes, qtd.carry, pto);
+  const overrides = { ...att.saved }; for (const [a, ds] of Object.entries(pto)) for (const d of ds) if (overrides[`${a}|${d}`] == null) overrides[`${a}|${d}`] = 'PTO';
+  const wb = _BE.buildWorkbook({ data: parsed.data, recaps, tiers: parsed.tiers, timezones: parsed.timezones, overrides, pto,
+    qtdCarry: qtd.carry, qtdLabel: qtd.label, ytdCarry: ytd.carry, ytdLabel: ytd.label, monthLabel: ms.monthLabel, monthLabelLong: ms.monthLabelLong,
+    quarterLabel: ms.quarterLabel, year: ms.year, dateStart: parsed.dateStart, monthFirst: ms.monthFirst });
+
+  state.timezones_last = parsed.tzLast; state.dh_volume = parsed.volume;
+  state.carry[state.month] = monthSummary(parsed.data, ms, parsed.dateStart, parsed.dateEnd, state.month);
+  state.date_end = parsed.dateEnd; state.built_at = new Date().toISOString();
+  writeState(wb, state);
+
+  const um = parsed.unmatched;
+  if (um.calls.length) log.warn(`Names taking calls that aren't on the roster: ${um.calls.join(', ')}. Choose what they are under step 2 (new agent, name change, or not an agent), then build again.`);
+  if (um.schedule.length) log.warn(`Names on the schedule that aren't on the roster: ${um.schedule.join(', ')}. Choose what they are under step 2, then build again.`);
+  const unconf = Object.entries(parsed.timezones).filter(([, v]) => v == null).map(([a]) => a);
+  if (unconf.length) log.note(`Time zone not yet confirmed (normal for new hires and agents on PTO): ${unconf.join(', ')}.`);
+  const monthDone = parsed.dateEnd === ms.monthCap;
+  return { workbook: wb, state, log: logLines, fileName: ms.fileName, dateStart: parsed.dateStart, dateEnd: parsed.dateEnd, monthCap: ms.monthCap,
+    monthDone, unmatched: um, agents: Object.keys(parsed.data).length, qaFile: parsed.qaFile,
+    lastReportDay: inputs._lastReportDay };
+}
+
+const Engine = { runTracker, readState, writeState, nextMonthState, monthSettings, STATE_SHEET };
+if (typeof module !== 'undefined') module.exports = Engine; else window.TrackerEngine = Engine;
+
+// ---------- Roster edits (used by the web page) ----------
+function renameAgent(state, oldName, newName) {
+  const t = state.team;
+  t.roster = t.roster.map(n => n === oldName ? newName : n);
+  t.aliases = { ...(t.aliases || {}), [oldName]: newName };
+  t.renamed = { ...(t.renamed || {}), [oldName]: newName };
+  t.tier2 = (t.tier2 || []).map(n => n === oldName ? newName : n);
+  t.on_pto = (t.on_pto || []).map(n => n === oldName ? newName : n);
+  for (const m of Object.keys(state.attendance || {})) {
+    const a = state.attendance[m], out = {};
+    for (const [k, v] of Object.entries(a)) { const [ag, d] = k.split('|'); out[`${ag === oldName ? newName : ag}|${d}`] = v; }
+    state.attendance[m] = out;
+  }
+  if (state.timezones_last && state.timezones_last[oldName] != null) state.timezones_last[newName] = state.timezones_last[oldName];
+}
+function removeAgent(state, name) {
+  const t = state.team;
+  t.roster = t.roster.filter(n => n !== name);
+  t.tier2 = (t.tier2 || []).filter(n => n !== name); t.on_pto = (t.on_pto || []).filter(n => n !== name);
+  if (!t.exclude.includes(name)) t.exclude.push(name);
+}
+function addAgent(state, name) {
+  const t = state.team; name = name.replace(/\s+/g, ' ').trim(); if (!name) return;
+  t.exclude = t.exclude.filter(n => n.toLowerCase() !== name.toLowerCase());
+  if (!t.roster.some(n => n.toLowerCase() === name.toLowerCase())) t.roster.push(name);
+}
+Object.assign(Engine, { renameAgent, removeAgent, addAgent });
+
+// ---------- Recognize files by their contents (names change when downloaded from Teams) ----------
+function classifyCsv(rows) {
+  const h = new Set(Object.keys(rows[0] || {}).map(k => k.trim()));
+  if (h.has('State Name') && h.has('State Duration')) return 'us';
+  if (h.has('Start Date') && h.has('Handle Time') && h.has('User Name')) return 'dh';
+  if (h.has('Date / Time') && h.has('User')) return 'cdr';
+  if (h.has('Agent Name') && [...h].some(k => /^\S+\s+\d{1,2}\s+[A-Za-z]{3}\s+\d{4}$/.test(k))) return 'sched';
+  return null;
+}
+function classifyXlsx(wb) {
+  if (wb.getWorksheet('Dashboard')) return 'tracker';
+  if (wb.getWorksheet('Timesheet Entries')) return 'ts';
+  let qa = false;
+  wb.eachSheet(ws => { if (/^[A-Z][a-z]+ \d{4}$/.test(ws.name)) { const hdr = ws.getRow(1).values || []; if (hdr.some(v => _UE.cellVal(v) === 'Primerica Scorecard')) qa = true; } });
+  return qa ? 'qa' : null;
+}
+
+// ---------- Rebuild the saved data from a tracker made before this tool (or without the data sheet) ----------
+function stateFromTracker(wb) {
+  const cv = v => _UE.cellVal(v);
+  const days = v => v instanceof Date ? (v.getTime() - Date.UTC(1899, 11, 30)) / 86400000 : (typeof v === 'number' ? v : null);
+  const title = String(cv(wb.getWorksheet('Dashboard').getCell('B2').value) || '');
+  const m = /(January|February|March|April|May|June|July|August|September|October|November|December) (\d{4})/.exec(title);
+  if (!m) return null;
+  const month = `${m[2]}-${String(_UE.MONTHS.indexOf(m[1]) + 1).padStart(2, '0')}`;
+  const team = { roster: [], exclude: [], aliases: {}, renamed: {}, never_match: {}, tier2: [], on_pto: [] };
+  const tz = {}, qtd = {}, ytd = {}; let qtdLabel = null, ytdLabel = null, start = null, end = null;
+  wb.eachSheet(ws => {
+    if (['README - Start Here', 'Dashboard', STATE_SHEET].includes(ws.name)) return;
+    const name = cv(ws.getCell('B2').value), b3 = String(cv(ws.getCell('B3').value) || '');
+    if (!name || !b3.includes('Performance Tracker')) return;
+    team.roster.push(name);
+    if (/Tier: T2/.test(b3)) team.tier2.push(name);
+    if (/Status: ON PTO/.test(b3)) team.on_pto.push(name);
+    const z = /Timesheet TZ: (EST|CST|MST)/.exec(b3); if (z) tz[name] = { EST: 0, CST: 1, MST: 2 }[z[1]];
+    for (let r = 11; r < 120; r++) {
+      const v = cv(ws.getCell(r, 2).value);
+      if (v instanceof Date && r < 60) { const d = _UE.ymd(v); if (!start || d < start) start = d; if (!end || d > end) end = d; }
+      if (typeof v !== 'string' || !v.startsWith('Prior')) continue;
+      const g = c => cv(ws.getCell(r, c).value);
+      const rec = { days: g(3) || 0, calls: g(4) || 0, denied: g(5) || 0, aht: days(g(6)), acw: days(g(7)), hold: days(g(8)), nr: days(g(9)),
+        qa: typeof g(10) === 'number' ? g(10) : null, outbound: g(11) || 0 };
+      const lab = (/\((.*)\)/.exec(v) || [])[1] || '';
+      const real = !/none/i.test(lab);
+      if (v.startsWith('Prior Months')) { if (real) { qtd[name] = rec; qtdLabel = lab; } }
+      else if (real) { ytd[name] = rec; ytdLabel = lab; }
+    }
+  });
+  const carry = {}, settings = { date_start: start, date_end: 'auto', qtd_prior: [], ytd_prior: [] };
+  if (qtdLabel) { carry['prior-qtd'] = { label: qtdLabel, agents: qtd }; settings.qtd_prior = ['prior-qtd']; }
+  if (ytdLabel) { carry['prior-ytd'] = { label: ytdLabel, agents: ytd }; settings.ytd_prior = ['prior-ytd']; }
+  return { month, settings, team, carry, attendance: {}, auto_pto: {}, timezones_last: tz, dh_volume: {}, date_end: end, rebuilt_from_tracker: true };
+}
+Object.assign(Engine, { classifyCsv, classifyXlsx, stateFromTracker });
+
+})();
+</script>
+
+<script>
+(function () {
+  const E = window.TrackerEngine, U = window.TrackerUtil;
+  const $ = id => document.getElementById(id);
+  const files = new Map();              // key -> {name, kind, size, csvRows?, wb?, state?, detail}
+  let baseState = null, stateSource = '', workState = null, lastResult = null, startNext = false;
+
+  // Files are recognized by what's inside them, so names changed by Teams or a browser download don't matter.
+  const KINDS = [
+    { kind: 'tracker', label: 'Current tracker from Teams', req: true },
+    { kind: 'dh', label: 'DetailedHistory report (calls)', req: true },
+    { kind: 'us', label: 'UserStateDetail report (logins, breaks)', req: true },
+    { kind: 'sched', label: 'Schedule (Data-export)', req: true },
+    { kind: 'qa', label: 'Call Review Team Checklist (QA)', req: true },
+    { kind: 'ts', label: 'Timesheet Entries (payroll punches)', req: false },
+    { kind: 'cdr', label: 'CDR report (only fills days missing from DetailedHistory)', req: false },
+    { kind: 'backup', label: 'Saved-data backup', req: false }
+  ];
+  const fmtD = s => { const d = U.fromYmd(s); return `${d.getUTCMonth() + 1}/${d.getUTCDate()}`; };
+  const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  const tick = () => new Promise(r => setTimeout(r, 30));
+  const setStatus = t => { $('status').textContent = t; };
+
+  function csvRange(rows, field) {
+    let lo = null, hi = null;
+    for (const r of rows) { const dt = U.parseDt(r[field]); if (!dt) continue; const d = U.ymd(dt); if (!lo || d < lo) lo = d; if (!hi || d > hi) hi = d; }
+    return lo ? [lo, hi] : null;
+  }
+
+  async function addFiles(list) {
+    const arr = [...list]; if (!arr.length) return;
+    for (const [i, f] of arr.entries()) {
+      setStatus(`Reading ${f.name} (${i + 1} of ${arr.length})…`); await tick();
+      const key = `${f.name}|${f.size}`; if (files.has(key)) continue;
+      const rec = { name: f.name, size: f.size, kind: null };
+      try {
+        if (/\.csv$/i.test(f.name)) {
+          const text = (await f.text()).replace(/^\uFEFF/, '');
+          rec.csvRows = Papa.parse(text, { header: true, skipEmptyLines: true }).data;
+          rec.kind = E.classifyCsv(rec.csvRows);
+          const field = rec.kind === 'dh' ? 'Start Date' : rec.kind === 'us' ? 'Start Time' : rec.kind === 'cdr' ? 'Date / Time' : null;
+          if (field) { const r = csvRange(rec.csvRows, field); rec.range = r; rec.detail = r ? `${fmtD(r[0])} to ${fmtD(r[1])}` : 'no dated rows found'; }
+          if (rec.kind === 'sched') {
+            const ds = Object.keys(rec.csvRows[0] || {}).map(c => /^\S+\s+(\d{1,2})\s+([A-Za-z]{3})\s+(\d{4})$/.exec(c.trim())).filter(Boolean)
+              .map(m => `${m[3]}-${String(U.MON3.indexOf(m[2].toLowerCase()) + 1).padStart(2, '0')}-${m[1].padStart(2, '0')}`).sort();
+            rec.range = ds.length ? [ds[0], ds[ds.length - 1]] : null; rec.detail = rec.range ? `week of ${fmtD(rec.range[0])} to ${fmtD(rec.range[1])}` : 'no dates found';
+          }
+        } else if (/\.xlsx$/i.test(f.name)) {
+          const wb = new ExcelJS.Workbook(); await wb.xlsx.load(await f.arrayBuffer()); rec.wb = wb;
+          rec.kind = E.classifyXlsx(wb);
+          if (rec.kind === 'tracker') {
+            rec.state = E.readState(wb);
+            const title = (U.cellVal(wb.getWorksheet('Dashboard').getCell('B2').value) || '').replace('Team Dashboard — ', '');
+            if (rec.state) rec.detail = `${title}, built through ${fmtD(rec.state.date_end || rec.state.settings.date_start)}`;
+            else {
+              rec.state = E.stateFromTracker(wb); rec.rebuilt = true;
+              rec.detail = rec.state ? `${title}, through ${fmtD(rec.state.date_end)}. Older format: the roster, tiers, and totals will be read from its tabs.`
+                : `${title}. Couldn't read this tracker's tabs.`;
+            }
+          }
+          else if (rec.kind === 'ts') {
+            const ws = wb.getWorksheet('Timesheet Entries');
+            if (ws) { const ds = U.sheetRows(ws).rows.map(r => r['Date']).map(d => d instanceof Date ? U.ymd(d) : (typeof d === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(d) ? d : null)).filter(Boolean).sort();
+              rec.detail = ds.length ? `${fmtD(ds[0])} to ${fmtD(ds[ds.length - 1])}` : 'no dated rows found'; } else rec.detail = 'No "Timesheet Entries" sheet found.';
+          } else if (rec.kind === 'qa') {
+            let best = null; wb.eachSheet(ws => { if (!/^[A-Z][a-z]+ \d{4}$/.test(ws.name)) return; for (const r of U.sheetRows(ws).rows) { const v = r['Date']; if (v instanceof Date && v <= U.nowNaive() && (!best || v > best)) best = v; } });
+            rec.detail = best ? `reviews through ${fmtD(U.ymd(best))}` : 'no dated reviews found';
+          }
+        } else if (/\.json$/i.test(f.name)) {
+          const st = JSON.parse(await f.text());
+          if (!st || !st.team || !st.month) throw new Error('not a tracker backup');
+          rec.kind = 'backup'; rec.state = st; rec.detail = `${st.month}, saved through ${st.date_end || 'start of month'}`;
+        }
+        if (!rec.kind) rec.detail = "Not one of the reports this tool uses, so it will be skipped.";
+      } catch (e) { rec.kind = null; rec.detail = `Could not read this file (${e.message}).`; }
+      files.set(key, rec);
+    }
+    setStatus(''); refresh();
+  }
+
+  function pickState() {
+    const cands = [...files.values()].filter(f => f.state);
+    // Prefer the newest month, then saved data over data rebuilt from an older tracker, then the latest build.
+    const rank = f => f.state.month + (f.state.date_end || '') + (f.rebuilt ? '0' : '1') + (f.state.built_at || '');
+    cands.sort((a, b) => rank(a) < rank(b) ? 1 : -1);
+    const best = cands[0];
+    if (!best) { baseState = null; stateSource = ''; workState = null; return; }
+    if (stateSource !== best.name + best.size) {
+      baseState = best.state; stateSource = best.name + best.size; workState = JSON.parse(JSON.stringify(baseState)); startNext = false;
+    }
+  }
+
+  function lastReportDay() {
+    let hi = null; for (const f of files.values()) if (f.kind === 'dh' && f.range && (!hi || f.range[1] > hi)) hi = f.range[1]; return hi;
+  }
+
+  function refresh() {
+    pickState();
+    const list = [...files.values()];
+    const ul = $('manifest'); ul.innerHTML = '';
+    for (const k of KINDS) {
+      const got = list.filter(f => f.kind === k.kind).sort((a, b) => ((a.range || [''])[0] < (b.range || [''])[0] ? -1 : 1));
+      if (k.kind === 'backup' && !got.length) continue;
+      const li = document.createElement('li');
+      let ok = got.length > 0;
+      if (k.kind === 'tracker') ok = list.some(f => f.state);
+      li.className = ok ? 'ok' : (k.req ? 'missing' : 'optional');
+      const det = got.length ? got.map(f => `${esc(f.name)}${f.detail ? ': ' + esc(f.detail) : ''}`).join('<br>')
+        : (k.req ? 'Required' : 'Optional');
+      let extra = '';
+      if (k.kind === 'tracker' && got.length && !ok) extra = '<br><strong>This tracker could not be read.</strong> Use the latest tracker from Teams, or add a saved-data backup (.json).';
+      li.innerHTML = `<span class="mark" aria-hidden="true">${ok ? '✓' : (k.req ? '!' : '–')}</span><div><div class="what">${k.label}</div><div class="detail">${det}${extra}</div></div>`;
+      li.setAttribute('aria-label', `${k.label}: ${ok ? 'added' : (k.req ? 'missing, required' : 'not added, optional')}`);
+      ul.appendChild(li);
+    }
+    const unknown = list.filter(f => !f.kind);
+    for (const f of unknown) {
+      const li = document.createElement('li'); li.className = 'optional';
+      li.innerHTML = `<span class="mark" aria-hidden="true">–</span><div><div class="what">${esc(f.name)}</div><div class="detail">${esc(f.detail || 'Not recognized.')}</div></div>`;
+      ul.appendChild(li);
+    }
+    renderMonth(); renderRoster(); renderUnmatched();
+    const reqOk = KINDS.filter(k => k.req).every(k => k.kind === 'tracker' ? list.some(f => f.state) : list.some(f => f.kind === k.kind));
+    $('build').disabled = !reqOk || !workState;
+    $('backup').disabled = !(lastResult || workState);
+  }
+
+  function effectiveState() { return startNext ? E.nextMonthState(workState) : workState; }
+
+  function renderMonth() {
+    const box = $('monthline');
+    if (!workState) { box.classList.add('hidden'); return; }
+    box.classList.remove('hidden');
+    const ms = E.monthSettings(workState), done = workState.date_end && workState.date_end >= ms.monthCap;
+    const next = E.nextMonthState(workState), nms = E.monthSettings(next);
+    const eff = effectiveState(), ems = E.monthSettings(eff);
+    let html = `<strong>Building ${ems.monthLabelLong}</strong>, starting ${fmtD(eff.settings.date_start)}. The last day included is picked automatically (a day still in progress is held for next time).`;
+    if (done && !startNext) html += `<div class="row"><span>${ms.monthLabelLong} is complete (through ${fmtD(ms.monthCap)}).</span><button type="button" id="goNext">Start ${nms.monthLabelLong}</button></div>`;
+    else if (startNext) html += `<div class="row"><span>This starts a new file for ${ems.monthLabelLong}. Keep the ${ms.monthLabelLong} file as it is.</span><button type="button" class="secondary" id="goBack">Stay on ${ms.monthLabelLong}</button></div>`;
+    else { const lr = lastReportDay(); if (lr && lr > ms.monthCap) html += `<div class="row"><span>The reports run past ${fmtD(ms.monthCap)}, the last day of the ${ms.monthLabelLong} tracker. Build ${ms.monthLabelLong} first; you can then build ${nms.monthLabelLong} from the same files.</span></div>`; }
+    box.innerHTML = html;
+    if ($('goNext')) $('goNext').onclick = () => { startNext = true; refresh(); };
+    if ($('goBack')) $('goBack').onclick = () => { startNext = false; refresh(); };
+  }
+
+  function renderRoster() {
+    const body = $('rosterBody');
+    if (!workState) { $('rosterSummary').textContent = '(add the current tracker first)'; body.innerHTML = ''; return; }
+    const t = workState.team, roster = [...t.roster].sort();
+    const t2 = new Set(t.tier2 || []), pto = new Set(t.on_pto || []);
+    $('rosterSummary').textContent = `${roster.length} agents, ${roster.filter(n => t2.has(n)).length} in Tier 2, ${roster.filter(n => pto.has(n)).length} on PTO`;
+    body.innerHTML = `<div class="tablewrap"><table><thead><tr><th scope="col">Agent (as on the phone system)</th><th scope="col">Tier</th><th scope="col">On extended PTO</th><th scope="col"><span class="hidden">Actions</span></th></tr></thead><tbody>${
+      roster.map(n => `<tr><td>${esc(n)}</td><td><select data-tier="${esc(n)}" aria-label="Tier for ${esc(n)}"><option${t2.has(n) ? '' : ' selected'}>T1</option><option${t2.has(n) ? ' selected' : ''}>T2</option></select></td>
+        <td><input type="checkbox" data-pto="${esc(n)}" aria-label="${esc(n)} on PTO"${pto.has(n) ? ' checked' : ''}></td>
+        <td><button type="button" class="link" data-rename="${esc(n)}">Rename</button> &nbsp; <button type="button" class="link" data-remove="${esc(n)}">Remove</button></td></tr>`).join('')
+    }</tbody></table></div>
+    <div class="addrow"><input type="text" id="newAgent" placeholder="New agent, spelled as on the phone system" aria-label="New agent name"><button type="button" class="secondary" id="addAgent">Add agent</button></div>
+    <p class="detail" style="margin-top:10px;color:var(--muted);font-size:14px">Changes apply to the next build and are saved inside the new tracker. Removing someone keeps their history out of future files; use it for departures.</p>`;
+    body.querySelectorAll('[data-tier]').forEach(el => el.onchange = () => {
+      const n = el.dataset.tier; t.tier2 = (t.tier2 || []).filter(x => x !== n); if (el.value === 'T2') t.tier2.push(n); refresh();
+    });
+    body.querySelectorAll('[data-pto]').forEach(el => el.onchange = () => {
+      const n = el.dataset.pto; t.on_pto = (t.on_pto || []).filter(x => x !== n); if (el.checked) t.on_pto.push(n); refresh();
+    });
+    body.querySelectorAll('[data-remove]').forEach(el => el.onclick = () => {
+      if (confirm(`Remove ${el.dataset.remove} from the tracker? Use this when someone has left.`)) { E.removeAgent(workState, el.dataset.remove); refresh(); $('roster').open = true; }
+    });
+    body.querySelectorAll('[data-rename]').forEach(el => el.onclick = () => {
+      const nn = prompt(`New name for ${el.dataset.rename}, as it now appears on the phone system:`, el.dataset.rename);
+      if (nn && nn.trim() && nn.trim() !== el.dataset.rename) { E.renameAgent(workState, el.dataset.rename, nn.replace(/\s+/g, ' ').trim()); refresh(); $('roster').open = true; }
+    });
+    $('addAgent').onclick = () => { const v = $('newAgent').value; if (v.trim()) { E.addAgent(workState, v); refresh(); $('roster').open = true; } };
+  }
+
+  function renderUnmatched() {
+    const box = $('unmatched');
+    if (!lastResult || !workState) { box.innerHTML = ''; return; }
+    const um = [...new Set([...lastResult.unmatched.calls, ...lastResult.unmatched.schedule])]
+      .filter(n => !(workState.team.aliases || {})[n] && !workState.team.exclude.includes(n) && !workState.team.roster.includes(n));
+    if (!um.length) { box.innerHTML = ''; return; }
+    const opts = [...workState.team.roster].sort().map(n => `<option>${esc(n)}</option>`).join('');
+    box.innerHTML = `<div class="unmatched"><h3>Names in the reports that aren't on the roster</h3>
+      <p style="margin:0 0 6px">Their activity isn't in the tracker until you choose what they are, then build again.</p>${
+      um.map(n => `<div class="item"><span class="nm">${esc(n)}</span>
+        <button type="button" class="secondary" data-addnew="${esc(n)}">New agent</button>
+        <select data-aliasfor="${esc(n)}" aria-label="Same person as"><option value="">Same person as…</option>${opts}</select>
+        <button type="button" class="link" data-ignore="${esc(n)}">Ignore (not an agent)</button></div>`).join('')}</div>`;
+    box.querySelectorAll('[data-addnew]').forEach(el => el.onclick = () => { E.addAgent(workState, el.dataset.addnew.includes(',') ? el.dataset.addnew.split(',').map(s => s.trim()).reverse().join(' ') : el.dataset.addnew); refresh(); });
+    box.querySelectorAll('[data-aliasfor]').forEach(el => el.onchange = () => { if (el.value) { workState.team.aliases = { ...(workState.team.aliases || {}), [el.dataset.aliasfor]: el.value }; refresh(); } });
+    box.querySelectorAll('[data-ignore]').forEach(el => el.onclick = () => { workState.team.exclude.push(el.dataset.ignore); refresh(); });
+  }
+
+  function inputsFromFiles() {
+    const inputs = { csv: [], xlsx: [] };
+    for (const f of files.values()) {
+      if (!f.kind || f.kind === 'backup') continue;
+      if (f.csvRows) inputs.csv.push({ name: f.name, rows: f.csvRows, kind: f.kind });
+      else if (f.wb) inputs.xlsx.push({ name: f.name, wb: f.wb, kind: f.kind });
+    }
+    return inputs;
+  }
+
+  async function build() {
+    $('build').disabled = true; $('results').innerHTML = ''; setStatus('Building… this takes a few seconds.'); await tick();
+    let res;
+    try { res = E.runTracker(inputsFromFiles(), effectiveState()); }
+    catch (e) { setStatus(''); $('results').innerHTML = `<ul class="log"><li class="error"><strong>Build stopped.</strong> ${esc(e.message)}</li></ul>`; $('build').disabled = false; return; }
+    setStatus('Saving the workbook…'); await tick();
+    const buf = await res.workbook.xlsx.writeBuffer();
+    const url = URL.createObjectURL(new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }));
+    lastResult = res;
+    // The new file now holds the newest saved data; later builds in this session continue from it.
+    const built = { name: res.fileName + ' (just built)', size: 0, kind: 'tracker', state: res.state, wb: null, detail: `built through ${fmtD(res.dateEnd)}` };
+    files.set(`__built__${res.fileName}`, built);
+    baseState = res.state; stateSource = built.name + built.size; workState = JSON.parse(JSON.stringify(res.state)); startNext = false;
+    const order = { warn: 0, note: 1, info: 2 };
+    const log = [...res.log].sort((a, b) => order[a.type] - order[b.type]);
+    const ms = E.monthSettings(res.state), lr = lastReportDay();
+    const more = res.monthDone && lr && lr > res.monthCap
+      ? `<p style="margin-top:12px">${ms.monthLabelLong} is complete, and these reports also include ${E.monthSettings(E.nextMonthState(res.state)).monthLabelLong}. After saving this file, you can build the next month from the same files: choose <strong>Start ${E.monthSettings(E.nextMonthState(res.state)).monthLabelLong}</strong> in step 1, then Build.</p>` : '';
+    $('results').innerHTML = `<div class="result"><h3>${esc(res.fileName)} is ready</h3>
+      <div>${res.agents} agents, ${fmtD(res.dateStart)} to ${fmtD(res.dateEnd)}.</div>
+      <div class="actions"><a class="btn" href="${url}" download="${esc(res.fileName)}">Download ${esc(res.fileName)}</a></div>
+      <p style="margin:12px 0 0">Next: upload it to the Teams channel, replacing the current file (keep the same name), so everyone's link keeps working.</p>${more}</div>
+      <ul class="log">${log.map(l => `<li class="${l.type}">${esc(l.text)}</li>`).join('')}</ul>`;
+    setStatus(''); refresh();
+  }
+
+  function downloadBackup() {
+    const st = lastResult ? lastResult.state : workState; if (!st) return;
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([JSON.stringify(st, null, 1)], { type: 'application/json' }));
+    a.download = `tracker-saved-data-${st.month}-${st.date_end || 'start'}.json`; a.click();
+  }
+
+  const drop = $('drop');
+  ['dragenter', 'dragover'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.add('over'); }));
+  ['dragleave', 'drop'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.remove('over'); }));
+  drop.addEventListener('drop', e => addFiles(e.dataTransfer.files));
+  window.addEventListener('dragover', e => e.preventDefault()); window.addEventListener('drop', e => e.preventDefault());
+  $('choose').onclick = () => $('files').click();
+  $('files').onchange = e => { addFiles(e.target.files); e.target.value = ''; };
+  $('clear').onclick = () => { files.clear(); baseState = workState = lastResult = null; stateSource = ''; startNext = false; $('results').innerHTML = ''; refresh(); };
+  $('build').onclick = build; $('backup').onclick = downloadBackup;
+  if (!window.ExcelJS || !window.Papa) setStatus('The page could not load its spreadsheet tools. Check the internet connection and reload.');
+  refresh();
+})();
+
+</script>
+</body>
+</html>
